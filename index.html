@@ -17,6 +17,7 @@
  --mute:light-dark(#5d6a70,#93a3a9);--line:light-dark(#e1e6e8,#26343a);--acc:light-dark(#0b5d63,#4fb3ba);
  --acc-ink:#fff;--warn:light-dark(#9a4b00,#ffb067);--bad:light-dark(#b3261e,#ff8a80);
  --feed:#2e9d4a;--prim:#e6b800;--dist:#2f6fd6;--gevel:#64b5f6;--aerial:#d64f9a;--las:#e05aa3}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
 h1,h2,h3{font-family:"Inter Tight",Inter,sans-serif;line-height:1.1;margin:0;text-wrap:balance}
@@ -29,6 +30,14 @@ nav{display:flex;gap:4px;flex-wrap:wrap}
 nav a{padding:8px 12px;border-radius:8px;text-decoration:none;color:var(--ink);font-weight:500}
 nav a.on{background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc)}
 .who{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center}
+#thema{min-height:36px;padding:0 10px;font-size:13px}
+.uc{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:12px}
+.uc .card h3{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
+.pct{font:600 20px 'Inter Tight',sans-serif;font-variant-numeric:tabular-nums}
+.big{height:12px;border-radius:6px}
+.kv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:13.5px;margin:10px 0}
+.kv b{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.late{color:var(--bad)}.ok{color:var(--feed)}
 main{max-width:1240px;margin:0 auto;padding:clamp(18px,3vw,36px) max(4vw,14px) 60px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}
@@ -51,7 +60,7 @@ td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 tr.click{cursor:pointer}tr.click:hover td{background:color-mix(in srgb,var(--acc) 6%,transparent)}
 .scroll{overflow-x:auto}
-.muted{color:var(--mute)}.small{font-size:13px}
+.muted{color:var(--mute)}.small{font-size:13px}p{overflow-wrap:anywhere}
 .chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12.5px;border:1px solid var(--line);margin:2px 4px 2px 0;white-space:nowrap;background:var(--card)}
 .chip .dot{width:9px;height:9px;border-radius:50%}
 .bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line);min-width:90px}
@@ -81,9 +90,11 @@ details summary{cursor:pointer;color:var(--acc);font-weight:500;min-height:32px}
   <div class="brand"><i><b style="background:var(--feed)"></b><b style="background:var(--prim)"></b><b style="background:var(--dist)"></b><b style="background:var(--las)"></b></i>WYRE Centraal</div>
   <nav id="nav" class="hidden">
     <a href="#overzicht" data-v="overzicht">Overzicht</a>
+    <a href="#uitrol" data-v="uitrol">Uitrol</a>
     <a href="#import" data-v="import" class="beheer">Import</a>
     <a href="#team" data-v="team" class="beheer">Team</a>
   </nav>
+  <button id="thema" type="button" aria-label="Thema kiezen">Thema: auto</button>
   <div class="who hidden" id="who"><span id="whoMail"></span><button class="link" id="uit">Uitloggen</button></div>
 </header>
 <main id="app"><p class="muted">Laden…</p></main>
@@ -312,7 +323,85 @@ const WYRE = (() => {
     return { kabels: Object.values(kabels), pocs: Object.values(pocs), dps, meters, lasjes, laatste };
   }
 
-  return { normKabel, normPoc, kabelSoort, toDate, zoneId, zoneLabel, parseActuals, parseGepland, buildZones, summarize };
+
+  // ---------- Uitrol: HP-targetplanning en POC-lijst ----------
+  const MAAND = { jan: 1, feb: 2, mar: 3, mrt: 3, apr: 4, may: 5, mei: 5, jun: 6, jul: 7, aug: 8, sep: 9, sept: 9, oct: 10, okt: 10, nov: 11, dec: 12 };
+  function popNaamToZone(naam) {
+    const m = txt(naam).toUpperCase().match(/MRO_(.+?)_?POP_?(\d+)/);
+    return m ? { id: zoneId(m[1], m[2]), hub: m[1], pop: pad3(m[2]) } : null;
+  }
+  // rows = blad "Detail per POP" (rij 1 jaartallen, rij 2 maanden)
+  function parseTargets(rows) {
+    const jr = rows[0] || [], mr = rows[1] || [];
+    const kol = [];
+    let jaar = null;
+    for (let c = 0; c < mr.length; c++) {
+      if (typeof jr[c] === 'number') jaar = jr[c];
+      const naam = txt(mr[c]).toLowerCase();
+      if (c === 4 && /^20\d\d$/.test(naam)) { kol.push({ c, key: naam }); continue; } // jaartotaal 2025
+      if (jaar && MAAND[naam]) kol.push({ c, key: `${jaar}-${pad(MAAND[naam], 2)}` });
+    }
+    const pops = [];
+    for (const r of rows.slice(2)) {
+      if (!r) continue;
+      const z = popNaamToZone(r[1]);
+      if (!z) continue;
+      const t = { id: z.id, hub: z.hub, pop: z.pop, label: zoneLabel(z.hub, z.pop), hp: num(r[3]) || 0, opm: txt(r[2]), m: {} };
+      for (const k of kol) { const v = num(r[k.c]); if (v) t.m[k.key] = (t.m[k.key] || 0) + v; }
+      pops.push(t);
+    }
+    return pops;
+  }
+  // HP per POC uit de Delivery planning: één tabblad per POP-zone (bv. MRO_STROMBEEKBVR_01_POP_04), kolommen Type / Label / # HP.
+  function parseHpLijst(sheets) {
+    const zones = {}; let n = 0;
+    for (const sh of sheets) {
+      const naam = sh.naam.toUpperCase().replace('STROMBEEKBVR', 'STROMBEEKBEVER');
+      const z = popNaamToZone(naam);
+      if (!z) continue;
+      const hi = sh.rows.findIndex(r => r && r.some(v => /^#?\s*hp$/i.test(txt(v))));
+      if (hi < 0) continue;
+      const h = sh.rows[hi].map(v => txt(v).toLowerCase());
+      const ti = h.indexOf('type'), li = h.indexOf('label'), pi = h.findIndex(v => /^#?\s*hp$/.test(v));
+      const pocs = (zones[z.id] || (zones[z.id] = {}));
+      for (const r of sh.rows.slice(hi + 1)) {
+        if (!r || txt(r[ti]).toUpperCase() !== 'POC') continue;
+        const poc = normPoc(r[li]); const hp = num(r[pi]);
+        if (!poc || hp === null) continue;
+        pocs[poc] = Math.max(pocs[poc] || 0, hp); n++;
+      }
+    }
+    return { zones, n };
+  }
+
+  // Uitrol per zone. Target 2026 komt uit de HP-planning, gerealiseerd = POC's gelast in de Actuals × HP uit de HP-lijst.
+  function uitrol(zone, target, hpPocs, maand) {
+    const jaar = maand.slice(0, 4);
+    const gelast = {};
+    for (const r of (zone?.rijen || [])) if (r.s === 'poc-las' && r.p) {
+      if (!(r.p in gelast) || (r.d || '') > gelast[r.p]) gelast[r.p] = r.d || '';
+    }
+    const lijst = hpPocs || {};
+    let hpGelast = 0, hpJaar = 0, hpMaand = 0, hpLijst = 0, hpOpen = 0;
+    const open = [], onbekend = [];
+    for (const [p, hp] of Object.entries(lijst)) {
+      hpLijst += hp;
+      if (p in gelast) {
+        const d = gelast[p] || '';
+        hpGelast += hp;
+        if (d.slice(0, 4) === jaar && d.slice(0, 7) <= maand) hpJaar += hp;
+        if (d.slice(0, 7) === maand) hpMaand += hp;
+      } else { open.push({ p, hp, m: /M\d\d$/.test(p) }); hpOpen += hp; }
+    }
+    for (const p of Object.keys(gelast)) if (!(p in lijst)) onbekend.push(p);
+    let cum = 0;
+    for (const [k, v] of Object.entries(target?.m || {})) if (k.length === 7 && k.slice(0, 4) === jaar && k <= maand) cum += v;
+    return { gelast, hpGelast, hpJaar, hpMaand, hpLijst, hpOpen,
+      open: open.sort((a, b) => a.p.localeCompare(b.p)), onbekend: onbekend.sort(),
+      tMaand: target?.m?.[maand] || 0, cum, nodig: Math.max(0, cum - hpJaar), hpTot: target?.hp || hpLijst };
+  }
+
+  return { parseTargets, parseHpLijst, uitrol, popNaamToZone, normKabel, normPoc, kabelSoort, toDate, zoneId, zoneLabel, parseActuals, parseGepland, buildZones, summarize };
 })();
 if (typeof module !== 'undefined') module.exports = WYRE;
 
@@ -338,15 +427,29 @@ const auth = getAuth(fb); auth.languageCode = 'nl';
 const db = getFirestore(fb);
 const ZONES = () => collection(db, 'wyre', 'v1', 'zones');
 const META = () => doc(db, 'wyre', 'v1', 'meta', 'import');
+const TARGETS = () => doc(db, 'wyre', 'v1', 'plan', 'targets');
+const HPLIJST = () => doc(db, 'wyre', 'v1', 'plan', 'hp');
 
 const $ = s => document.querySelector(s);
+/* Thema: auto / licht / donker, onthouden in deze browser */
+const THEMAS = ['auto', 'licht', 'donker'];
+function zetThema(t) {
+  if (t === 'licht') document.documentElement.dataset.theme = 'light';
+  else if (t === 'donker') document.documentElement.dataset.theme = 'dark';
+  else delete document.documentElement.dataset.theme;
+  $('#thema').textContent = 'Thema: ' + t;
+  try { localStorage.setItem('wyre-thema', t); } catch (e) {}
+}
+let thema = 'auto'; try { thema = localStorage.getItem('wyre-thema') || 'auto'; } catch (e) {}
+zetThema(thema);
+$('#thema').onclick = () => { thema = THEMAS[(THEMAS.indexOf(thema) + 1) % 3]; zetThema(thema); };
 const app = $('#app');
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const nf = new Intl.NumberFormat('nl-BE');
 const fmtD = d => d ? d.split('-').reverse().join('/') : '';
 const COL = { feed: 'var(--feed)', primair: 'var(--prim)', dist: 'var(--dist)', gevel: 'var(--gevel)', aerial: 'var(--aerial)', overig: 'var(--mute)' };
 const SOORT = { feed: 'Feed', primair: 'Primaire dist.', dist: 'Dist', gevel: 'Gevel', aerial: 'Aerial', overig: 'Overig' };
-const S = { user: null, rol: null, naam: '', zones: {}, meta: null, team: [], unsub: [], pending: null, zoneFilter: '', hub: '' };
+const S = { targets: null, hp: null, maand: '', user: null, rol: null, naam: '', zones: {}, meta: null, team: [], unsub: [], pending: null, zoneFilter: '', hub: '' };
 
 const AUTHFOUT = {
   'auth/invalid-credential': 'E-mailadres of wachtwoord klopt niet.',
@@ -443,13 +546,15 @@ onAuthStateChanged(auth, u => {
 $('#uit').onclick = () => signOut(auth);
 
 /* ---------- Data ---------- */
-function stopData() { S.unsub.forEach(f => f()); S.unsub = []; S.zones = {}; S.meta = null; S.team = []; }
+function stopData() { S.unsub.forEach(f => f()); S.unsub = []; S.zones = {}; S.meta = null; S.team = []; S.targets = null; S.hp = null; }
 function startData() {
   stopData();
   S.unsub.push(onSnapshot(ZONES(), snap => {
     S.zones = {}; snap.forEach(d => S.zones[d.id] = d.data()); S.loaded = true; rerender();
   }, e => { app.innerHTML = `<div class="msg bad">Kan de gegevens niet laden: ${esc(fout(e))}</div>`; }));
   S.unsub.push(onSnapshot(META(), d => { S.meta = d.exists() ? d.data() : null; rerender(); }, () => {}));
+  S.unsub.push(onSnapshot(TARGETS(), d => { S.targets = d.exists() ? d.data() : null; rerender(); }, () => {}));
+  S.unsub.push(onSnapshot(HPLIJST(), d => { S.hp = d.exists() ? d.data() : null; rerender(); }, () => {}));
   if (S.rol === 'beheer') S.unsub.push(onSnapshot(collection(db, 'toegang'), snap => {
     S.team = []; snap.forEach(d => S.team.push({ email: d.id, ...d.data() }));
     S.team.sort((a, b) => (a.naam || a.email).localeCompare(b.naam || b.email)); if (view() === 'team') rerender();
@@ -463,7 +568,7 @@ function route() {
   const v = view();
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.v === v || (v === 'zone' && a.dataset.v === 'overzicht')));
   if ((v === 'import' || v === 'team') && S.rol !== 'beheer') { location.hash = 'overzicht'; return; }
-  ({ overzicht: overzichtView, zone: zoneView, import: importView, team: teamView }[v] || overzichtView)();
+  ({ overzicht: overzichtView, uitrol: uitrolView, zone: zoneView, import: importView, team: teamView }[v] || overzichtView)();
 }
 let rt; function rerender() { if (view() === 'import' && S.pending) return; clearTimeout(rt); rt = setTimeout(route, 30); }
 addEventListener('hashchange', () => { route(); scrollTo(0, 0); });
@@ -585,11 +690,39 @@ function zoneView() {
 }
 
 /* ---------- Import ---------- */
+const SOORTEN = {
+  actuals: 'Actuals (uitgevoerd werk)',
+  targets: 'HP-targets per maand',
+  hp: 'HP per POC (Delivery planning)'
+};
+function leesSheets(wb) {
+  return wb.SheetNames.map(n => {
+    const ws = wb.Sheets[n];
+    let maxR = 0; // sommige bladen zeggen 1 miljoen rijen; neem de echte laatste rij
+    for (const k of Object.keys(ws)) if (k[0] !== '!') { const r = XLSX.utils.decode_cell(k).r; if (r > maxR) maxR = r; }
+    if (ws['!ref']) { const rg = XLSX.utils.decode_range(ws['!ref']); rg.e.r = Math.min(rg.e.r, maxR); ws['!ref'] = XLSX.utils.encode_range(rg); }
+    return { naam: n, rows: XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null }) };
+  });
+}
+function herken(sheets, bestand) {
+  const det = sheets.find(s => s.naam.toLowerCase() === 'detail per pop');
+  if (det) { const pops = WYRE.parseTargets(det.rows); return { soort: 'targets', bestand, pops }; }
+  if (sheets.some(s => s.naam.toLowerCase().startsWith('actuals'))) return { soort: 'actuals', bestand, ...WYRE.buildZones(sheets) };
+  const hp = WYRE.parseHpLijst(sheets);
+  if (hp.n) return { soort: 'hp', bestand, ...hp };
+  return null;
+}
 function importView() {
   const p = S.pending;
-  app.innerHTML = `<div class="fade"><h1>Actuals importeren</h1>
-   <p class="muted">Kies de Excel <i>Actuals_lijst_WYRE_alle_zones_1.0 (nog in gebruik!).xlsx</i>. De tabbladen <i>Actuals 2025</i>, <i>Actuals 2026</i> en <i>nog blazen</i> worden ingelezen. De Excel zelf wordt niet aangepast.</p>
-   <div class="card"><div class="row"><input type="file" id="xf" accept=".xlsx,.xlsm,.xls"><span class="sp"></span>${p ? '<button id="annul">Annuleren</button><button class="pri" id="save">Opslaan in database</button>' : ''}</div>
+  const st = (lbl, d) => `<tr><td>${lbl}</td><td>${d ? `${esc(d.bestand || '')}<div class="muted small">${d.op?.toDate ? d.op.toDate().toLocaleString('nl-BE', { dateStyle: 'short', timeStyle: 'short' }) : ''}${d.door ? ' · ' + esc(d.door) : ''}</div>` : '<span class="muted">nog niet ingeladen</span>'}</td></tr>`;
+  app.innerHTML = `<div class="fade"><h1>Importeren</h1>
+   <p class="muted">Kies een Excel. Ik herken zelf welk soort bestand het is. De Excel zelf wordt niet aangepast.</p>
+   <div class="card"><table class="stack"><thead><tr><th>Bron</th><th>Laatst ingeladen</th></tr></thead><tbody>
+    ${st('Actuals: <i>Actuals_lijst_WYRE_alle_zones…</i>', S.meta)}
+    ${st('HP-targets per maand: <i>HP delivered … samenvatting</i> (blad "Detail per POP")', S.targets)}
+    ${st('HP per POC: <i>Wyre MRO HP Delivery planning</i> (één tabblad per POP, alleen kolom # HP)', S.hp)}
+   </tbody></table></div>
+   <div class="card dp"><div class="row"><input type="file" id="xf" accept=".xlsx,.xlsm,.xls"><span class="sp"></span>${p ? '<button id="annul">Annuleren</button><button class="pri" id="save">Opslaan in database</button>' : ''}</div>
    <div id="im"></div></div>
    ${p ? previewHtml(p) : ''}</div>`;
   const say = (t, k = '') => $('#im').innerHTML = `<div class="msg ${k}">${t}</div>`;
@@ -598,37 +731,133 @@ function importView() {
     say('Excel lezen…');
     try {
       const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
-      const sheets = wb.SheetNames.map(n => ({ naam: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }) }));
-      const res = WYRE.buildZones(sheets);
-      if (!res.totaal) return say('In dit bestand staan geen tabbladen "Actuals …" met regels. Is dit de juiste Excel?', 'bad');
-      S.pending = { ...res, bestand: f.name }; importView();
+      const res = herken(leesSheets(wb), f.name);
+      if (!res) return say('Ik herken dit bestand niet. Verwacht: de Actuals-lijst, de HP-samenvatting met blad "Detail per POP", of de HP Delivery planning met een tabblad per POP.', 'bad');
+      S.pending = res; importView();
     } catch (err) { say('Kon de Excel niet lezen: ' + esc(fout(err)), 'bad'); }
   };
   if (!p) return;
   $('#annul').onclick = () => { S.pending = null; importView(); };
   $('#save').onclick = async () => {
     $('#save').disabled = true; say('Opslaan…');
+    const wie = { bestand: p.bestand, door: S.naam, email: S.user.email, op: serverTimestamp() };
     try {
-      const batch = writeBatch(db);
-      for (const z of Object.values(p.zones)) batch.set(doc(ZONES(), z.id), { ...z, bijgewerkt: serverTimestamp(), bron: p.bestand });
-      const weg = Object.keys(S.zones).filter(id => !p.zones[id]);
-      weg.forEach(id => batch.delete(doc(ZONES(), id)));
-      batch.set(META(), { bestand: p.bestand, door: S.naam, email: S.user.email, op: serverTimestamp(), regels: p.totaal, zones: Object.keys(p.zones).length });
-      await batch.commit();
-      S.pending = null; location.hash = 'overzicht';
+      if (p.soort === 'actuals') {
+        const batch = writeBatch(db);
+        for (const z of Object.values(p.zones)) batch.set(doc(ZONES(), z.id), { ...z, bijgewerkt: serverTimestamp(), bron: p.bestand });
+        Object.keys(S.zones).filter(id => !p.zones[id]).forEach(id => batch.delete(doc(ZONES(), id)));
+        batch.set(META(), { ...wie, regels: p.totaal, zones: Object.keys(p.zones).length });
+        await batch.commit();
+        S.pending = null; location.hash = 'overzicht';
+      } else if (p.soort === 'targets') {
+        await setDoc(TARGETS(), { ...wie, pops: p.pops });
+        S.pending = null; location.hash = 'uitrol';
+      } else {
+        await setDoc(HPLIJST(), { ...wie, zones: p.zones, n: p.n });
+        S.pending = null; location.hash = 'uitrol';
+      }
     } catch (err) { $('#save').disabled = false; say('Opslaan mislukt: ' + esc(fout(err)), 'bad'); }
   };
 }
 function previewHtml(p) {
+  const kop = `<h2>Controle: ${SOORTEN[p.soort]}</h2><p>${esc(p.bestand)}</p>`;
+  if (p.soort === 'targets') {
+    const nu = new Date().toISOString().slice(0, 7);
+    const ms = [nu, volgende(nu)];
+    return `<div class="card dp">${kop}<p><b>${p.pops.length}</b> POP-zones met een HP-planning.</p>
+     <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th class="n">HP totaal</th>${ms.map(m => `<th class="n">Target ${maandNaam(m)}</th>`).join('')}<th>Opmerking</th></tr></thead><tbody>
+     ${p.pops.filter(t => ms.some(m => t.m[m])).map(t => `<tr><td>${esc(t.label)}</td><td class="n">${nf.format(t.hp)}</td>${ms.map(m => `<td class="n">${t.m[m] ? nf.format(t.m[m]) : ''}</td>`).join('')}<td class="small">${esc(t.opm)}</td></tr>`).join('')}
+     </tbody></table></div><p class="muted small">Hierboven alleen de zones met een target deze of volgende maand. Opslaan vervangt de vorige HP-planning.</p></div>`;
+  }
+  if (p.soort === 'hp') {
+    const zs = Object.entries(p.zones).sort(([a], [b]) => a.localeCompare(b));
+    return `<div class="card dp">${kop}<p><b>${nf.format(p.n)}</b> POC's met HP in <b>${zs.length}</b> POP-zones. Alleen het aantal HP per POC wordt gebruikt.</p>
+     <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th class="n">POC's</th><th class="n">HP</th></tr></thead><tbody>
+     ${zs.map(([id, pocs]) => `<tr><td>${esc(S.zones[id]?.label || id)}</td><td class="n">${Object.keys(pocs).length}</td><td class="n">${nf.format(Object.values(pocs).reduce((a, b) => a + b, 0))}</td></tr>`).join('')}
+     </tbody></table></div><p class="muted small">Opslaan vervangt de vorige HP-lijst.</p></div>`;
+  }
   const zs = Object.values(p.zones).sort((a, b) => a.label.localeCompare(b.label));
-  return `<div class="card dp"><h2>Controle voor het opslaan</h2>
-   <p>${esc(p.bestand)}: <b>${nf.format(p.totaal)}</b> regels in <b>${zs.length}</b> POP-zones.</p>
+  const weg = Object.keys(S.zones).filter(id => !p.zones[id]);
+  return `<div class="card dp">${kop}
+   <p><b>${nf.format(p.totaal)}</b> regels in <b>${zs.length}</b> POP-zones.</p>
    ${p.waarschuwingen.length ? `<details><summary>${p.waarschuwingen.length} opmerkingen bij het inlezen</summary><ul class="small">${p.waarschuwingen.slice(0, 200).map(w => `<li>${esc(w)}</li>`).join('')}</ul></details>` : ''}
    <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th class="n">Regels nu</th><th class="n">Regels nieuw</th><th class="n">Verschil</th><th class="n">Gepland</th></tr></thead><tbody>
    ${zs.map(z => { const nu = S.zones[z.id]?.rijen?.length || 0; const d = z.rijen.length - nu; return `<tr><td>${esc(z.label)}</td><td class="n">${nu}</td><td class="n">${z.rijen.length}</td><td class="n" style="color:${d < 0 ? 'var(--bad)' : 'inherit'}">${d > 0 ? '+' : ''}${d}</td><td class="n">${z.gepland.length || ''}</td></tr>`; }).join('')}
    </tbody></table></div>
-   ${Object.keys(S.zones).filter(id => !p.zones[id]).length ? `<div class="msg warn">Deze zones staan nu in de database maar niet in de Excel en worden verwijderd: ${Object.keys(S.zones).filter(id => !p.zones[id]).map(esc).join(', ')}</div>` : ''}
+   ${weg.length ? `<div class="msg warn">Deze zones staan nu in de database maar niet in de Excel en worden verwijderd: ${weg.map(esc).join(', ')}</div>` : ''}
    <p class="muted small">Opslaan vervangt de gegevens per zone door de inhoud van deze Excel.</p></div>`;
+}
+
+/* ---------- Uitrol ---------- */
+const MN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
+const MNL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+const maandNaam = (m, lang) => (lang ? MNL : MN)[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4);
+const volgende = m => { let [y, mm] = m.split('-').map(Number); mm++; if (mm > 12) { mm = 1; y++; } return `${y}-${String(mm).padStart(2, '0')}`; };
+function uitrolView() {
+  if (!S.loaded) { app.innerHTML = '<p class="muted">Gegevens laden…</p>'; return; }
+  const ontbreekt = [!S.targets && 'de HP-targets per maand', !S.hp && 'de HP per POC (Delivery planning)'].filter(Boolean);
+  if (ontbreekt.length) {
+    app.innerHTML = `<h1>Uitrol</h1><div class="msg">Voor de uitrol ontbreekt nog ${ontbreekt.join(' en ')}. ${S.rol === 'beheer' ? 'Laad die in via <a href="#import">Import</a>.' : 'Een beheerder moet die eerst inladen.'}</div>`;
+    return;
+  }
+  const nu = new Date().toISOString().slice(0, 7);
+  if (!S.maand) S.maand = nu;
+  const M = S.maand, M2 = volgende(M);
+  const opties = []; { let m = `${nu.slice(0, 4)}-01`; for (let i = 0; i < 15; i++) { opties.push(m); m = volgende(m); } }
+  const tg = Object.fromEntries((S.targets.pops || []).map(t => [t.id, t]));
+  const ids = [...new Set([...Object.keys(tg), ...Object.keys(S.hp.zones || {})])];
+  const rows = ids.map(id => {
+    const t = tg[id], z = S.zones[id];
+    const u = WYRE.uitrol(z, t, S.hp.zones?.[id], M), u2 = WYRE.uitrol(z, t, S.hp.zones?.[id], M2);
+    return { id, label: t?.label || z?.label || id, opm: t?.opm || '', t, u, u2, lijst: !!S.hp.zones?.[id] };
+  });
+  const metTarget = rows.filter(r => r.u.tMaand).sort((a, b) => b.u.nodig - a.u.nodig);
+  const achter = rows.filter(r => !r.u.tMaand && r.u.nodig > 0).sort((a, b) => b.u.nodig - a.u.nodig);
+  const sum = (rs, f) => rs.reduce((a, r) => a + f(r), 0);
+  const tM = sum(rows, r => r.u.tMaand), gM = sum(rows, r => r.u.hpMaand);
+  const cum = sum(rows, r => r.u.cum), gJ = sum(rows, r => Math.min(r.u.hpJaar, r.u.cum));
+  const card = r => {
+    const u = r.u, pct = u.cum ? Math.min(100, Math.round(u.hpJaar / u.cum * 100)) : 100;
+    const kleur = u.nodig ? (pct < 50 ? 'var(--bad)' : 'var(--prim)') : 'var(--feed)';
+    const open = u.open.filter(o => !o.m), mdu = u.open.filter(o => o.m);
+    return `<div class="card"><h3><a href="#zone/${esc(r.id)}">${esc(r.label)}</a><span class="pct" style="color:${kleur}">${pct}%</span></h3>
+     <div class="bar big" title="${u.hpJaar} van ${u.cum} HP"><span style="width:${pct}%;background:${kleur}"></span></div>
+     <div class="kv">
+      <span>Target ${maandNaam(M)}</span><b>${nf.format(u.tMaand)} HP</b>
+      <span>Gelast in ${maandNaam(M)}</span><b>${nf.format(u.hpMaand)} HP</b>
+      <span>Target ${M.slice(0, 4)} t/m ${MN[+M.slice(5) - 1]}</span><b>${nf.format(u.cum)} HP</b>
+      <span>Gelast in ${M.slice(0, 4)}</span><b>${nf.format(u.hpJaar)} HP</b>
+      <span>Nog nodig voor target</span><b class="${u.nodig ? 'late' : 'ok'}">${u.nodig ? nf.format(u.nodig) + ' HP' : 'gehaald'}</b>
+      ${r.u2.tMaand ? `<span>Target ${maandNaam(M2)}</span><b>${nf.format(r.u2.tMaand)} HP</b>` : ''}
+      <span>Nog open in de zone</span><b>${nf.format(u.hpOpen)} HP · ${u.open.length} POC's</b>
+     </div>
+     ${r.opm ? `<p class="small muted" style="margin:6px 0">${esc(r.opm)}</p>` : ''}
+     ${!r.lijst ? '<div class="msg warn small">Deze zone staat niet in de HP-lijst; gelast en open HP zijn onbekend.</div>' : ''}
+     ${open.length ? `<details><summary>Open POC's (${open.length})</summary>${open.map(o => `<span class="chip"><b>${esc(o.p)}</b> ${o.hp} HP</span>`).join('')}</details>` : ''}
+     ${mdu.length ? `<details><summary>MDU-POC's zonder las (${mdu.length})</summary><p class="small muted">MDU-POC's worden niet gelast en komen dus niet als las in de Actuals.</p>${mdu.map(o => `<span class="chip"><b>${esc(o.p)}</b> ${o.hp} HP</span>`).join('')}</details>` : ''}
+     ${u.onbekend.length ? `<details><summary>Gelast maar niet in de HP-lijst (${u.onbekend.length})</summary>${u.onbekend.map(p => `<span class="chip">${esc(p)}</span>`).join('')}</details>` : ''}
+    </div>`;
+  };
+  app.innerHTML = `<div class="fade">
+   <div class="row"><h1>Uitrol ${maandNaam(M, 1)}</h1><span class="sp"></span>
+    <select id="mnd" aria-label="Maand">${opties.map(m => `<option value="${m}" ${m === M ? 'selected' : ''}>${maandNaam(m, 1)}</option>`).join('')}</select></div>
+   <p class="muted small">Target uit ${esc(S.targets.bestand || 'de HP-planning')}. Gelast = POC's met een las in de Actuals, geteld met het aantal HP uit ${esc(S.hp.bestand || 'de HP-lijst')}.</p>
+   <div class="kpis">
+    <div class="kpi"><div class="v">${nf.format(tM)}</div><div class="l">HP target ${maandNaam(M)} (${metTarget.length} zones)</div></div>
+    <div class="kpi"><div class="v">${nf.format(gM)}</div><div class="l">HP gelast in ${maandNaam(M)}</div></div>
+    <div class="kpi"><div class="v">${cum ? Math.round(gJ / cum * 100) : 0}%</div><div class="l">van target ${M.slice(0, 4)} t/m ${MN[+M.slice(5) - 1]} (${nf.format(gJ)} van ${nf.format(cum)} HP)</div></div>
+    <div class="kpi"><div class="v">${nf.format(sum(rows, r => r.u.nodig))}</div><div class="l">HP nog nodig om alle targets t/m ${MN[+M.slice(5) - 1]} te halen</div></div>
+   </div>
+   <h2>Zones met een target in ${maandNaam(M, 1)}</h2>
+   ${metTarget.length ? `<div class="uc dp">${metTarget.map(card).join('')}</div>` : `<p class="muted">Geen zones met een target in ${maandNaam(M, 1)}.</p>`}
+   ${achter.length ? `<h2 class="dp">Nog achter op een eerder target van ${M.slice(0, 4)}</h2><div class="uc dp">${achter.map(card).join('')}</div>` : ''}
+   <div class="card dp"><h2>Alle zones: ${maandNaam(M)} en ${maandNaam(M2)}</h2>
+    <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th class="n">Target ${MN[+M.slice(5) - 1]}</th><th class="n">Target ${MN[+M2.slice(5) - 1]}</th><th class="n">Target t/m ${MN[+M2.slice(5) - 1]}</th><th class="n">Gelast ${M.slice(0, 4)}</th><th class="n">Nog nodig t/m ${MN[+M2.slice(5) - 1]}</th><th class="n">Open HP</th></tr></thead><tbody>
+    ${rows.filter(r => r.u.tMaand || r.u2.tMaand || r.u2.nodig).sort((a, b) => b.u2.nodig - a.u2.nodig).map(r => `<tr class="click" data-z="${esc(r.id)}"><td>${esc(r.label)}</td><td class="n">${r.u.tMaand ? nf.format(r.u.tMaand) : ''}</td><td class="n">${r.u2.tMaand ? nf.format(r.u2.tMaand) : ''}</td><td class="n">${nf.format(r.u2.cum)}</td><td class="n">${nf.format(r.u2.hpJaar)}</td><td class="n ${r.u2.nodig ? 'late' : 'ok'}">${r.u2.nodig ? nf.format(r.u2.nodig) : '✓'}</td><td class="n">${r.lijst ? nf.format(r.u.hpOpen) : '?'}</td></tr>`).join('')}
+    </tbody></table></div></div>
+  </div>`;
+  $('#mnd').onchange = e => { S.maand = e.target.value; uitrolView(); };
+  app.querySelectorAll('tr[data-z]').forEach(tr => tr.onclick = () => location.hash = 'zone/' + tr.dataset.z);
 }
 
 /* ---------- Team ---------- */
