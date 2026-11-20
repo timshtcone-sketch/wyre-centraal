@@ -193,6 +193,7 @@ const WYRE = (() => {
 
   function classify(r) {
     const werk = r.w.toLowerCase();
+    if (werk === 'blazen' && r.k && !r.l) return 'blazen';
     if (r.p) return 'poc-las';
     if (['blazen', 'facade', 'aerial', 'gevel'].includes(werk) && (r.m || r.k)) return 'blazen';
     if (werk === 'lassen' || r.l) {
@@ -401,7 +402,79 @@ const WYRE = (() => {
       tMaand: target?.m?.[maand] || 0, cum, nodig: Math.max(0, cum - hpJaar), hpTot: target?.hp || hpLijst };
   }
 
-  return { parseTargets, parseHpLijst, uitrol, popNaamToZone, normKabel, normPoc, kabelSoort, toDate, zoneId, zoneLabel, parseActuals, parseGepland, buildZones, summarize };
+  // ---------- Tekeningen (voortgangstrackers) ----------
+  // Haalt de tekening uit een tracker-HTML: NET (kabels/nodes), TILES (achtergrond), TS/LV (tegelschaal).
+  function parseTracker(html) {
+    const pak = (naam) => {
+      const i = html.indexOf('const ' + naam + '=');
+      if (i < 0) return null;
+      const s = i + naam.length + 7;
+      let e = html.indexOf('\n', s); if (e < 0) e = html.length;
+      let t = html.slice(s, e).trim();
+      const stop = t.indexOf(';const '); if (stop >= 0) t = t.slice(0, stop);
+      t = t.replace(/;\s*$/, '');
+      return JSON.parse(t);
+    };
+    const net = pak('NET');
+    if (!net || !net.items || !net.nodes) return null;
+    let tiles = null; try { tiles = pak('TILES'); } catch (e) { tiles = null; }
+    const plan = (html.match(/const PLAN='([^']+)'/) || [])[1] || '';
+    const ts = +((html.match(/const TS=(\d+)/) || [])[1] || 512);
+    let lv = [0.5, 1, 2, 4]; const m = html.match(/LV=(\[[^\]]*\])/); if (m) { try { lv = JSON.parse(m[1]); } catch (e) {} }
+    const titel = ((html.match(/<title>([^<]*)<\/title>/) || [])[1] || plan).replace(/\s*Voortgang\s*$/i, '');
+    return { plan, titel, ts, lv, net, tiles };
+  }
+  function trackerZone(plan) {
+    const m = String(plan).toUpperCase().match(/MRO_(.+?)_POP_(\d{3})(\d{3})?$/);
+    return m ? zoneId(m[1], m[2]) : null;
+  }
+
+  // Kleurt een tekening in vanuit de Actuals-regels van de zone. Geeft {id: {d, info:[...]}} en een lijst niet-gekoppelde regels.
+  function kleurTekening(net, zone) {
+    const on = {}, los = [];
+    const items = net.items, nodes = net.nodes;
+    const perKabel = {};
+    for (const it of items) (perKabel[it.cable] || (perKabel[it.cable] = [])).push(it);
+    for (const k in perKabel) perKabel[k].sort((a, b) => a.name.localeCompare(b.name));
+    const zet = (id, r, tekst) => { const o = on[id] || (on[id] = { d: '', info: [] }); if ((r.d || '') > o.d) o.d = r.d || ''; o.info.push(tekst); };
+    const nr = p => +((p.match(/(\d{1,2})$/) || [])[1] || 0);
+    const pocIn = (txt, kabel) => [...String(txt || '').toUpperCase().matchAll(/\b(\d{2,3})([A-E])(M?)(\d{1,2})\b/g)]
+      .map(m => normPoc(m[0])).filter(p => p.slice(0, 4) === kabel);
+    for (const r of (zone?.rijen || [])) {
+      const t = [r.d ? r.d.split('-').reverse().join('-') : '', r.w, r.a, r.m ? r.m + ' m' : '', r.kt ? r.kt + 'v' : '', r.l ? r.l + ' lasjes' : '', r.c].filter(Boolean).join(' · ');
+      const werk = (r.w || '').toLowerCase();
+      let gekoppeld = false;
+      if (r.s === 'blazen' && r.k) {
+        if (r.k === 'FEED') { for (const it of items.filter(i => i.type === 'feed')) { zet(it.id, r, t); gekoppeld = true; } }
+        else if (r.k.includes('-')) {
+          const dps = r.k.split('-');
+          let kand = items.filter(i => i.type === 'prim' && i.cable === r.k);
+          if (!kand.length) kand = items.filter(i => i.type === 'prim' && dps.slice(1).every(d => i.cable.split('-').includes(d)));
+          for (const it of kand) { zet(it.id, r, t); gekoppeld = true; }
+        } else if (perKabel[r.k]) {
+          let segs = perKabel[r.k];
+          const c = String(r.c || '');
+          const tot = c.match(/\btot\b(.*)$/i), van = c.match(/\bvan\b\s*(\S+)/i);
+          if (r.p && (werk === 'facade' || werk === 'aerial' || werk === 'gevel')) segs = segs.filter(i => i.name === r.p);
+          else if (tot) {
+            const na = pocIn(tot[1], r.k).map(nr); const vanNr = van ? (pocIn(van[1], r.k).map(nr)[0] || 0) : 0;
+            if (na.length) { const max = Math.max(...na); segs = segs.filter(i => { const n = nr(i.name); return n > vanNr && n <= max; }); }
+          }
+          for (const it of segs) { zet(it.id, r, t); gekoppeld = true; }
+        }
+      }
+      if (r.p && (r.s === 'poc-las' || werk === 'facade' || werk === 'aerial')) {
+        if (r.p in nodes) { zet('N-' + r.p, r, t); gekoppeld = true; }
+        if (werk === 'facade' || werk === 'aerial') { const seg = items.find(i => i.name === r.p); if (seg) { zet(seg.id, r, t); gekoppeld = true; } }
+      }
+      if ((r.s === 'dp-las' || r.s === 'pdp-las') && r.dp && r.dp in nodes) { zet('N-' + r.dp, r, t); gekoppeld = true; }
+      if (r.s === 'feed-las' && '010' in nodes) { zet('N-010', r, t); gekoppeld = true; }
+      if (!gekoppeld && r.s !== 'overig') los.push(r);
+    }
+    return { on, los };
+  }
+
+  return { parseTracker, trackerZone, kleurTekening, parseTargets, parseHpLijst, uitrol, popNaamToZone, normKabel, normPoc, kabelSoort, toDate, zoneId, zoneLabel, parseActuals, parseGepland, buildZones, summarize };
 })();
 if (typeof module !== 'undefined') module.exports = WYRE;
 
@@ -411,7 +484,7 @@ if (typeof module !== 'undefined') module.exports = WYRE;
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   sendEmailVerification, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, writeBatch, serverTimestamp }
+import { getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, collection, onSnapshot, writeBatch, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -430,6 +503,9 @@ const META = () => doc(db, 'wyre', 'v1', 'meta', 'import');
 const TARGETS = () => doc(db, 'wyre', 'v1', 'plan', 'targets');
 const HPLIJST = () => doc(db, 'wyre', 'v1', 'plan', 'hp');
 const EINDEJAAR = () => doc(db, 'wyre', 'v1', 'plan', 'eindejaar');
+const TEK = id => doc(db, 'wyre', 'v1', 'tekeningen', id);
+const TEGELS = id => collection(db, 'wyre', 'v1', 'tekeningen', id, 'tegels');
+const TEKIDX = () => doc(db, 'wyre', 'v1', 'meta', 'tekeningen');
 const UITROL = () => doc(db, 'wyre', 'v1', 'uitrol', 'novdec');
 
 const $ = s => document.querySelector(s);
@@ -451,7 +527,7 @@ const nf = new Intl.NumberFormat('nl-BE');
 const fmtD = d => d ? d.split('-').reverse().join('/') : '';
 const COL = { feed: 'var(--feed)', primair: 'var(--prim)', dist: 'var(--dist)', gevel: 'var(--gevel)', aerial: 'var(--aerial)', overig: 'var(--mute)' };
 const SOORT = { feed: 'Feed', primair: 'Primaire dist.', dist: 'Dist', gevel: 'Gevel', aerial: 'Aerial', overig: 'Overig' };
-const S = { eindejaar: null, targets: null, hp: null, maand: '', user: null, rol: null, naam: '', zones: {}, meta: null, team: [], unsub: [], pending: null, zoneFilter: '', hub: '', uitrolData: undefined, uitrolVer: null };
+const S = { tekIdx: {}, tekCache: {}, eindejaar: null, targets: null, hp: null, maand: '', user: null, rol: null, naam: '', zones: {}, meta: null, team: [], unsub: [], pending: null, zoneFilter: '', hub: '', uitrolData: undefined, uitrolVer: null };
 
 const AUTHFOUT = {
   'auth/invalid-credential': 'E-mailadres of wachtwoord klopt niet.',
@@ -548,7 +624,7 @@ onAuthStateChanged(auth, u => {
 $('#uit').onclick = () => signOut(auth);
 
 /* ---------- Data ---------- */
-function stopData() { S.unsub.forEach(f => f()); S.unsub = []; S.zones = {}; S.meta = null; S.team = []; S.targets = null; S.hp = null; S.eindejaar = null; S.uitrolData = undefined; S.uitrolVer = null; }
+function stopData() { S.unsub.forEach(f => f()); S.unsub = []; S.zones = {}; S.meta = null; S.team = []; S.targets = null; S.hp = null; S.eindejaar = null; S.uitrolData = undefined; S.uitrolVer = null; S.tekIdx = {}; }
 function startData() {
   stopData();
   S.unsub.push(onSnapshot(ZONES(), snap => {
@@ -556,6 +632,7 @@ function startData() {
   }, e => { app.innerHTML = `<div class="msg bad">Kan de gegevens niet laden: ${esc(fout(e))}</div>`; }));
   S.unsub.push(onSnapshot(META(), d => { S.meta = d.exists() ? d.data() : null; rerender(); }, () => {}));
   S.unsub.push(onSnapshot(TARGETS(), d => { S.targets = d.exists() ? d.data() : null; rerender(); }, () => {}));
+  S.unsub.push(onSnapshot(TEKIDX(), d => { S.tekIdx = d.exists() ? (d.data().zones || {}) : {}; if (view() !== 'uitrol') rerender(); }, () => {}));
   S.unsub.push(onSnapshot(EINDEJAAR(), d => { S.eindejaar = d.exists() ? d.data() : null; rerender(); }, () => {}));
   S.unsub.push(onSnapshot(HPLIJST(), d => { S.hp = d.exists() ? d.data() : null; rerender(); }, () => {}));
   S.unsub.push(onSnapshot(UITROL(), d => { S.uitrolData = d.exists() ? d.data() : null; if (view() === 'uitrol') rerender(); }, () => { S.uitrolData = null; }));
@@ -570,14 +647,15 @@ const view = () => (location.hash.slice(1).split('/')[0] || 'overzicht');
 function route() {
   if (!S.user) return;
   const v = view();
-  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.v === v || (v === 'zone' && a.dataset.v === 'overzicht')));
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.v === v || ((v === 'zone' || v === 'tekening') && a.dataset.v === 'overzicht')));
   if ((v === 'import' || v === 'team') && S.rol !== 'beheer') { location.hash = 'overzicht'; return; }
-  ({ overzicht: overzichtView, uitrol: uitrolView, zone: zoneView, import: importView, team: teamView }[v] || overzichtView)();
+  ({ overzicht: overzichtView, uitrol: uitrolView, zone: zoneView, tekening: tekeningView, import: importView, team: teamView }[v] || overzichtView)();
 }
 let rt; function rerender() { if (view() === 'import' && S.pending) return; clearTimeout(rt); rt = setTimeout(route, 30); }
 addEventListener('hashchange', () => { route(); scrollTo(0, 0); });
 
 /* ---------- Overzicht ---------- */
+const tekLink = (id, kort) => { const t = S.tekIdx[id]; return t ? `<a class="${kort ? '' : 'chip'}" href="#tekening/${esc(t.doc || id)}" onclick="event.stopPropagation()">${kort ? 'tekening' : 'Tekening openen'}</a>` : ''; };
 function zoneStats(z) {
   const s = WYRE.summarize(z);
   const pt = { UG: 0, 'Façade': 0, Aerial: 0 }; s.pocs.forEach(p => pt[p.t] = (pt[p.t] || 0) + 1);
@@ -614,7 +692,7 @@ function overzichtView() {
     <div class="row"><select id="hub" aria-label="HUB/MRO-zone"><option value="">Alle HUB/MRO-zones</option>${hubs.map(h => `<option ${h === S.hub ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select>
     <input id="zq" placeholder="Zoek POP-zone, kabel of POC" value="${esc(S.zoneFilter)}" style="flex:1 1 220px"></div>
     <div class="legend"><span><b style="background:var(--feed)"></b>Feed</span><span><b style="background:var(--prim)"></b>Primaire dist.</span><span><b style="background:var(--dist)"></b>Dist</span><span><b style="background:var(--gevel)"></b>Gevel</span><span><b style="background:var(--aerial)"></b>Aerial</span></div>
-    <div class="scroll"><table class="stack" id="zt"><thead><tr><th>POP-zone</th><th>Kabels geblazen</th><th class="n">Meters</th><th class="n">POC's gelast</th><th>Type POC's</th><th class="n">DP/PDP-lassen</th><th class="n">Laatste werk</th><th class="n">Gepland</th></tr></thead><tbody></tbody></table></div>
+    <div class="scroll"><table class="stack" id="zt"><thead><tr><th>POP-zone</th><th>Kabels geblazen</th><th class="n">Meters</th><th class="n">POC's gelast</th><th>Type POC's</th><th class="n">DP/PDP-lassen</th><th class="n">Laatste werk</th><th class="n">Gepland</th><th>Tekening</th></tr></thead><tbody></tbody></table></div>
    </div></div>`;
   const draw = () => {
     const q = S.zoneFilter.trim().toUpperCase();
@@ -629,7 +707,7 @@ function overzichtView() {
       <td class="small">${Object.entries(s.pt).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(' · ')}</td>
       <td class="n">${s.dpl}</td>
       <td class="n">${fmtD(s.laatste)}</td>
-      <td class="n">${(z.gepland || []).length || ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Niets gevonden.</td></tr>';
+      <td class="n">${(z.gepland || []).length || ''}</td><td>${tekLink(z.id, 1)}</td></tr>`).join('') || '<tr><td colspan="9" class="muted">Niets gevonden.</td></tr>';
     app.querySelectorAll('tr[data-z]').forEach(tr => tr.onclick = () => location.hash = 'zone/' + tr.dataset.z);
   };
   draw();
@@ -665,7 +743,7 @@ function zoneView() {
       ${ps.length ? `<div style="margin-top:6px"><span class="muted small">Gelast:</span><br>${ps.map(chipP).join('')}</div>` : ''}</div>`;
   };
   app.innerHTML = `<div class="fade"><p><a href="#overzicht">← Overzicht</a></p>
-    <h1>${esc(z.label)}</h1><p class="muted small">${esc(z.id)}</p>
+    <div class="row"><h1>${esc(z.label)}</h1><span class="sp"></span>${tekLink(z.id)}</div><p class="muted small">${esc(z.id)}</p>
     <div class="kpis">
      <div class="kpi"><div class="v">${s.pocs.length}</div><div class="l">POC's gelast</div></div>
      <div class="kpi"><div class="v">${s.kabels.length}</div><div class="l">kabels geblazen</div></div>
@@ -698,7 +776,8 @@ const SOORTEN = {
   actuals: 'Actuals (uitgevoerd werk)',
   targets: 'HP-targets per maand',
   hp: 'HP per POC (Delivery planning)',
-  eindejaar: 'Taken per zone uit WYRE eindejaar 2026'
+  eindejaar: 'Taken per zone uit WYRE eindejaar 2026',
+  tekeningen: 'Voortgangstekeningen (tracker-HTML)'
 };
 const naamNaarZone = n => { const m = String(n).toUpperCase().replace(/[-\s]/g, '').match(/^(.*?)(\d+)POP(\d+)$/); return m ? WYRE.zoneId(m[1] + '_' + m[2], m[3]) : null; };
 function leesSheets(wb) {
@@ -729,12 +808,27 @@ function importView() {
     ${st('HP per POC: <i>Wyre MRO HP Delivery planning</i> (één tabblad per POP, alleen kolom # HP)', S.hp)}
     ${st('Taken per zone: <i>WYRE eindejaar 2026</i> (JSON uit het oude artifact)', S.eindejaar)}
    </tbody></table></div>
-   <div class="card dp"><div class="row"><input type="file" id="xf" accept=".xlsx,.xlsm,.xls,.json"><span class="sp"></span>${p ? '<button id="annul">Annuleren</button><button class="pri" id="save">Opslaan in database</button>' : ''}</div>
+   <div class="card dp"><div class="row"><input type="file" id="xf" accept=".xlsx,.xlsm,.xls,.json,.html,.htm" multiple><span class="sp"></span>${p ? '<button id="annul">Annuleren</button><button class="pri" id="save">Opslaan in database</button>' : ''}</div>
    <div id="im"></div></div>
    ${p ? previewHtml(p) : ''}</div>`;
   const say = (t, k = '') => $('#im').innerHTML = `<div class="msg ${k}">${t}</div>`;
   $('#xf').onchange = async e => {
-    const f = e.target.files[0]; if (!f) return;
+    const fs = [...e.target.files]; const f = fs[0]; if (!f) return;
+    if (fs.every(x => /\.html?$/i.test(x.name))) {
+      say(`${fs.length} tekening(en) lezen…`);
+      const lijst = [], fouten = [];
+      for (const x of fs) {
+        try {
+          const t = WYRE.parseTracker(await x.text());
+          if (!t) { fouten.push(`${x.name}: geen voortgangstekening gevonden`); continue; }
+          const z1 = WYRE.trackerZone(t.plan); const m = t.plan.match(/POP_(\d{3})(\d{3})$/);
+          const zones = [z1, m ? z1.replace(/POP_\d{3}$/, 'POP_' + m[2]) : null].filter(Boolean);
+          lijst.push({ ...t, bestand: x.name, zones, doc: z1 || t.plan });
+        } catch (err) { fouten.push(`${x.name}: ${err.message || err}`); }
+      }
+      if (!lijst.length) return say(esc(fouten.join(' · ')) || 'Geen tekeningen gevonden.', 'bad');
+      S.pending = { soort: 'tekeningen', bestand: lijst.length + ' bestand(en)', lijst, fouten }; importView(); return;
+    }
     say('Excel lezen…');
     try {
       let res;
@@ -766,6 +860,22 @@ function importView() {
       } else if (p.soort === 'targets') {
         await setDoc(TARGETS(), { ...wie, pops: p.pops });
         S.pending = null; location.hash = 'uitrol';
+      } else if (p.soort === 'tekeningen') {
+        const idx = {};
+        for (const [i, t] of p.lijst.entries()) {
+          say(`Tekening ${i + 1} van ${p.lijst.length} opslaan: ${esc(t.titel)}…`);
+          const keys = Object.keys(t.tiles || {}); const chunks = []; let cur = {}, size = 0;
+          for (const k of keys) { const v = t.tiles[k]; if (size + v.length > 800000 && size) { chunks.push(cur); cur = {}; size = 0; } cur[k] = v; size += v.length + k.length; }
+          if (size) chunks.push(cur);
+          const oud = await getDocs(TEGELS(t.doc));
+          for (const d of oud.docs) if (+d.id >= chunks.length) await deleteDoc(d.ref);
+          for (const [n, c] of chunks.entries()) await setDoc(doc(TEGELS(t.doc), String(n)), { s: JSON.stringify(c) });
+          await setDoc(TEK(t.doc), { ...wie, bestand: t.bestand, plan: t.plan, titel: t.titel, ts: t.ts, lv: t.lv, zones: t.zones, net: JSON.stringify(t.net), chunks: chunks.length });
+          for (const z of t.zones) idx[z] = { doc: t.doc, titel: t.titel, items: t.net.items.length, nodes: Object.keys(t.net.nodes).length, op: new Date().toISOString().slice(0, 10) };
+          delete S.tekCache[t.doc];
+        }
+        await setDoc(TEKIDX(), { zones: idx }, { merge: true });
+        S.pending = null; location.hash = 'tekening/' + p.lijst[0].doc;
       } else if (p.soort === 'eindejaar') {
         await setDoc(EINDEJAAR(), { ...wie, stand: p.stand, pops: p.pops });
         S.pending = null; location.hash = 'uitrol';
@@ -777,6 +887,17 @@ function importView() {
   };
 }
 function previewHtml(p) {
+  if (p.soort === 'tekeningen') {
+    return `<div class="card dp"><h2>Controle: ${SOORTEN.tekeningen}</h2>
+     <div class="scroll"><table class="stack"><thead><tr><th>Bestand</th><th>Tekening</th><th>Koppelt aan</th><th class="n">Kabels</th><th class="n">Lassen</th><th class="n">Achtergrond</th><th class="n">Actuals ingekleurd</th></tr></thead><tbody>
+     ${p.lijst.map(t => { const rij = { rijen: t.zones.flatMap(z => S.zones[z]?.rijen || []) }; const k = WYRE.kleurTekening(t.net, rij);
+       const kb = Object.values(t.tiles || {}).reduce((a, v) => a + v.length, 0) * 0.75 / 1024;
+       return `<tr><td class="small">${esc(t.bestand)}</td><td>${esc(t.titel)}</td><td class="small">${t.zones.map(z => S.zones[z] ? esc(S.zones[z].label) : `<span class="late">${esc(z)} (geen Actuals)</span>`).join('<br>')}</td>
+       <td class="n">${t.net.items.length}</td><td class="n">${Object.keys(t.net.nodes).length}</td><td class="n">${t.tiles ? nf.format(Math.round(kb)) + ' kB' : '<span class="late">geen</span>'}</td><td class="n">${Object.keys(k.on).length}${k.los.length ? ` <span class="muted small">(${k.los.length} regels niet gekoppeld)</span>` : ''}</td></tr>`; }).join('')}
+     </tbody></table></div>
+     ${p.fouten.length ? `<div class="msg warn small">${p.fouten.map(esc).join('<br>')}</div>` : ''}
+     <p class="muted small">Alleen de tekening wordt bewaard. De kleuren komen altijd uit de Actuals in de database. Een tekening die er al staat, wordt vervangen.</p></div>`;
+  }
   if (p.soort === 'eindejaar') {
     return `<div class="card dp"><h2>Controle: ${SOORTEN.eindejaar}</h2><p>${esc(p.bestand)} · stand ${esc(p.stand)} · <b>${p.pops.length}</b> POP-zones</p>
      <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th>Herkend als</th><th>Doel</th><th class="n">Taken</th><th class="n">Klaar</th></tr></thead><tbody>
@@ -868,6 +989,118 @@ function uitrolView() {
     app.innerHTML = '<iframe id="uitrolFrame" title="Nov · Dec Uitrol" style="width:100%;height:calc(100vh - 150px);min-height:600px;border:1px solid var(--line);border-radius:12px;background:var(--card)"></iframe>';
     document.getElementById('uitrolFrame').srcdoc = html;
   }).catch(err => { app.innerHTML = `<div class="msg bad">Kon de uitroltool niet laden: ${esc(fout(err))}</div>`; });
+}
+
+/* ---------- Tekening ---------- */
+const TKOL = { feed: '22,163,74', prim: '234,179,8', dist: '37,99,235', facade: '14,165,233', aerial: '147,51,234' };
+const TNAAM = { feed: 'Feed', prim: 'Primaire dist', dist: 'Dist', facade: 'Gevelkabel', aerial: 'Aerial kabel' };
+async function laadTekening(id) {
+  if (S.tekCache[id]) return S.tekCache[id];
+  const d = await getDoc(TEK(id)); if (!d.exists()) return null;
+  const t = d.data(); const tiles = {};
+  const cs = await getDocs(TEGELS(id)); cs.forEach(c => Object.assign(tiles, JSON.parse(c.data().s || '{}')));
+  const net = JSON.parse(t.net);
+  const items = net.items.map(it => { const parts = it.parts || [it.pts]; let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+    for (const q of parts) for (const [x, y] of q) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+    return { ...it, parts, bb: [x0, y0, x1, y1] }; });
+  const nodes = Object.entries(net.nodes).map(([k, [x, y]]) => ({ id: 'N-' + k, code: k, x, y, kind: k === '010' ? 'PDP' : k.length === 3 ? 'DP' : /M\d\d$/.test(k) ? 'POC (MDU)' : 'POC' }));
+  return (S.tekCache[id] = { ...t, net, items, nodes, tiles, imgs: new Map() });
+}
+async function tekeningView() {
+  const id = decodeURIComponent(location.hash.split('/')[1] || '');
+  app.innerHTML = '<p class="muted">Tekening laden…</p>';
+  let T; try { T = await laadTekening(id); } catch (e) { app.innerHTML = `<div class="msg bad">Kan de tekening niet laden: ${esc(fout(e))}</div>`; return; }
+  if (view() !== 'tekening') return;
+  if (!T) { app.innerHTML = `<p><a href="#overzicht">← Overzicht</a></p><div class="msg warn">Voor deze zone is nog geen tekening ingeladen.</div>`; return; }
+  const rijen = (T.zones || []).flatMap(z => S.zones[z]?.rijen || []);
+  const { on, los } = WYRE.kleurTekening(T.net, { rijen });
+  const per = {}; for (const it of T.items) { const o = per[it.type] || (per[it.type] = [0, 0]); o[1]++; if (on[it.id]) o[0]++; }
+  const ln = T.nodes.filter(n => !/M\d\d$/.test(n.code)); const lnOn = ln.filter(n => on[n.id]).length;
+  const z0 = T.zones?.[0];
+  app.innerHTML = `<div class="fade"><div class="row"><p style="margin:0"><a href="#${S.zones[z0] ? 'zone/' + esc(z0) : 'overzicht'}">← ${S.zones[z0] ? esc(S.zones[z0].label) : 'Overzicht'}</a></p><span class="sp"></span>
+    <input id="tq" placeholder="Zoek kabel of POC, bv. 015A03" style="flex:0 1 260px"><label class="small row" style="gap:6px"><input type="checkbox" id="tghost" checked style="min-height:0">Open tracés tonen</label></div>
+   <h1 style="margin-top:10px">${esc(T.titel)}</h1>
+   <p class="muted small">Ingekleurd vanuit de Actuals in de database${S.meta?.op?.toDate ? ' (import ' + S.meta.op.toDate().toLocaleDateString('nl-BE') + ')' : ''}. Tekening: ${esc(T.bestand || '')}.</p>
+   <div class="kpis">${Object.entries(per).map(([k, [a, b]]) => `<div class="kpi"><div class="v">${a}/${b}</div><div class="l"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgb(${TKOL[k]})"></span> ${TNAAM[k] || k} ${k === 'facade' || k === 'aerial' ? 'geplaatst' : 'geblazen'}</div></div>`).join('')}
+    <div class="kpi"><div class="v">${lnOn}/${ln.length}</div><div class="l"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--las)"></span> PDP, DP en POC gelast</div></div></div>
+   <div class="card" style="padding:0;overflow:hidden;position:relative"><canvas id="tc" style="display:block;width:100%;height:min(72vh,780px);touch-action:none;background:#fff;cursor:grab"></canvas>
+    <div style="position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px"><button id="tzi" aria-label="Inzoomen">+</button><button id="tzo" aria-label="Uitzoomen">−</button><button id="tzf" aria-label="Hele tekening">⤢</button></div>
+    <div id="ttip" style="position:absolute;display:none;pointer-events:none;background:#111827;color:#fff;font-size:12px;padding:6px 8px;border-radius:6px;max-width:360px;white-space:pre-line;z-index:3"></div></div>
+   ${los.length ? `<details class="card dp"><summary>${los.length} Actuals-regels vonden geen plek op de tekening</summary><ul class="small">${los.map(r => `<li>${esc([r.d, r.w, r.k, r.p, r.c].filter(Boolean).join(' · '))}</li>`).join('')}</ul></details>` : ''}
+  </div>`;
+  const cv = $('#tc'), ctx = cv.getContext('2d'), tip = $('#ttip');
+  let W = 0, H = 0, dpr = 1, sc = 1, ox = 0, oy = 0, ghost = true, hl = null;
+  const [bx0, by0, bx1, by1] = T.items.concat(T.nodes.map(n => ({ bb: [n.x, n.y, n.x, n.y] }))).reduce((a, i) => [Math.min(a[0], i.bb[0]), Math.min(a[1], i.bb[1]), Math.max(a[2], i.bb[2]), Math.max(a[3], i.bb[3])], [1e9, 1e9, -1e9, -1e9]);
+  const fit = () => { sc = Math.min(W / (bx1 - bx0 + 80), H / (by1 - by0 + 80)); ox = W / 2 - (bx0 + bx1) / 2 * sc; oy = H / 2 - (by0 + by1) / 2 * sc; };
+  const tile = (z, x, y) => { const k = z + '/' + x + '/' + y; const b = T.tiles[k]; if (!b) return null; let im = T.imgs.get(k);
+    if (!im) { im = new Image(); im.onload = () => draw(); im.src = 'data:image/webp;base64,' + b; T.imgs.set(k, im); } return im.complete && im.naturalWidth ? im : null; };
+  function draw() {
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
+    if (Object.keys(T.tiles).length) {
+      const lv = T.lv || [0.5, 1, 2, 4], ts = T.ts || 512;
+      let z = lv.findIndex(v => v >= sc * dpr); if (z < 0) z = lv.length - 1;
+      const span = ts / lv[z];
+      const x0 = Math.floor(-ox / sc / span), y0 = Math.floor(-oy / sc / span), x1 = Math.floor((W - ox) / sc / span), y1 = Math.floor((H - oy) / sc / span);
+      for (let x = Math.max(0, x0); x <= x1; x++) for (let y = Math.max(0, y0); y <= y1; y++) {
+        let im = tile(z, x, y), zz = z;
+        if (!im) { for (zz = z - 1; zz >= 0; zz--) { const s2 = ts / lv[zz]; const im2 = tile(zz, Math.floor(x * span / s2), Math.floor(y * span / s2)); if (im2) { const sx = (x * span % s2) * lv[zz], sy = (y * span % s2) * lv[zz], sw = span * lv[zz];
+            ctx.drawImage(im2, sx, sy, sw, sw, ox + x * span * sc, oy + y * span * sc, span * sc + 0.5, span * sc + 0.5); break; } } continue; }
+        ctx.drawImage(im, ox + x * span * sc, oy + y * span * sc, span * sc + 0.5, span * sc + 0.5);
+      }
+    }
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const path = it => { ctx.beginPath(); for (const q of it.parts) q.forEach(([x, y], i) => i ? ctx.lineTo(ox + x * sc, oy + y * sc) : ctx.moveTo(ox + x * sc, oy + y * sc)); };
+    const lw = t => t === 'dist' ? 5 : t === 'prim' ? 7 : t === 'feed' ? 8 : 5;
+    if (ghost) for (const it of T.items) if (!on[it.id]) { path(it); ctx.strokeStyle = 'rgba(120,120,120,.35)'; ctx.setLineDash([6, 5]); ctx.lineWidth = 2; ctx.stroke(); ctx.setLineDash([]); }
+    for (const it of T.items) if (on[it.id]) { path(it); ctx.strokeStyle = `rgba(${TKOL[it.type] || '100,100,100'},.6)`; ctx.lineWidth = lw(it.type); ctx.stroke(); }
+    for (const n of T.nodes) { const r = n.kind === 'POC' || n.kind === 'POC (MDU)' ? 5 : 8; ctx.beginPath(); ctx.arc(ox + n.x * sc, oy + n.y * sc, r, 0, 7);
+      if (on[n.id]) { ctx.fillStyle = 'rgba(236,72,153,.75)'; ctx.fill(); } else if (ghost) { ctx.fillStyle = 'rgba(255,255,255,.8)'; ctx.fill(); ctx.strokeStyle = 'rgba(120,120,120,.6)'; ctx.lineWidth = 1.5; ctx.stroke(); } }
+    if (hl) { ctx.strokeStyle = '#ef4444'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(ox + hl.x * sc, oy + hl.y * sc, 18, 0, 7); ctx.stroke(); }
+  }
+  const resize = () => { const r = cv.getBoundingClientRect(); dpr = devicePixelRatio || 1; const first = !W; W = r.width; H = r.height; cv.width = W * dpr; cv.height = H * dpr; if (first) fit(); draw(); };
+  const ro = new ResizeObserver(resize); ro.observe(cv);
+  const zoom = (f, cx = W / 2, cy = H / 2) => { const n = Math.max(0.05, Math.min(20, sc * f)); ox = cx - (cx - ox) * n / sc; oy = cy - (cy - oy) * n / sc; sc = n; draw(); };
+  cv.addEventListener('wheel', e => { e.preventDefault(); const r = cv.getBoundingClientRect(); zoom(e.deltaY < 0 ? 1.2 : 1 / 1.2, e.clientX - r.left, e.clientY - r.top); }, { passive: false });
+  const pts = new Map(); let last = null, pinch = null;
+  cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, [e.clientX, e.clientY]); last = [e.clientX, e.clientY]; if (pts.size === 2) { const [a, b] = [...pts.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); } });
+  cv.addEventListener('pointermove', e => {
+    const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+    if (pts.has(e.pointerId)) {
+      pts.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pts.size === 2 && pinch) { const [a, b] = [...pts.values()]; const d = Math.hypot(a[0] - b[0], a[1] - b[1]); zoom(d / pinch, (a[0] + b[0]) / 2 - r.left, (a[1] + b[1]) / 2 - r.top); pinch = d; return; }
+      ox += e.clientX - last[0]; oy += e.clientY - last[1]; last = [e.clientX, e.clientY]; tip.style.display = 'none'; draw(); return;
+    }
+    toon(mx, my);
+  });
+  const up = e => { pts.delete(e.pointerId); if (pts.size < 2) pinch = null; };
+  cv.addEventListener('pointerup', e => { const r = cv.getBoundingClientRect(); if (e.pointerType !== 'mouse') toon(e.clientX - r.left, e.clientY - r.top); up(e); });
+  cv.addEventListener('pointercancel', up); cv.addEventListener('pointerleave', () => { tip.style.display = 'none'; });
+  function raak(mx, my) {
+    let best = null, bd = 12;
+    for (const n of T.nodes) { const d = Math.hypot(ox + n.x * sc - mx, oy + n.y * sc - my); if (d < bd) { bd = d; best = { n }; } }
+    if (best) return best;
+    bd = 8; const wx = (mx - ox) / sc, wy = (my - oy) / sc, tol = 8 / sc;
+    for (const it of T.items) { const [a, b, c, d] = it.bb; if (wx < a - tol || wx > c + tol || wy < b - tol || wy > d + tol) continue;
+      for (const q of it.parts) for (let i = 1; i < q.length; i++) { const [x1, y1] = q[i - 1], [x2, y2] = q[i]; const L = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+        const u = L ? Math.max(0, Math.min(1, ((wx - x1) * (x2 - x1) + (wy - y1) * (y2 - y1)) / L)) : 0; const dd = Math.hypot(x1 + u * (x2 - x1) - wx, y1 + u * (y2 - y1) - wy) * sc;
+        if (dd < bd) { bd = dd; best = { it }; } } }
+    return best;
+  }
+  function toon(mx, my) {
+    const h = raak(mx, my);
+    if (!h) { tip.style.display = 'none'; return; }
+    const id = h.n ? h.n.id : h.it.id, o = on[id];
+    const kop = h.n ? `${h.n.kind} ${h.n.code}` : `${TNAAM[h.it.type] || h.it.type} ${h.it.name}${h.it.cable && h.it.cable !== h.it.name ? ' (kabel ' + h.it.cable + ')' : ''}`;
+    tip.textContent = kop + '\n' + (o ? (h.n ? 'Gelast' : (h.it.type === 'facade' || h.it.type === 'aerial' ? 'Geplaatst' : 'Geblazen')) + '\n' + [...new Set(o.info)].slice(0, 4).join('\n') : 'Nog niet uitgevoerd volgens de Actuals');
+    tip.style.display = 'block'; tip.style.left = Math.min(mx + 14, W - 300) + 'px'; tip.style.top = (my + 14) + 'px';
+  }
+  $('#tzi').onclick = () => zoom(1.4); $('#tzo').onclick = () => zoom(1 / 1.4); $('#tzf').onclick = () => { fit(); draw(); };
+  $('#tghost').onchange = e => { ghost = e.target.checked; draw(); };
+  $('#tq').onkeydown = e => { if (e.key !== 'Enter') return; const q = e.target.value.trim().toUpperCase(); if (!q) return;
+    const n = T.nodes.find(n => n.code === q || n.code === WYRE.normPoc(q)) || T.nodes.find(n => n.code.includes(q));
+    const it = !n && T.items.find(i => i.name === q || i.cable === WYRE.normKabel(q));
+    const p = n ? { x: n.x, y: n.y } : it ? { x: (it.bb[0] + it.bb[2]) / 2, y: (it.bb[1] + it.bb[3]) / 2 } : null;
+    if (!p) return; sc = Math.max(sc, 1.2); ox = W / 2 - p.x * sc; oy = H / 2 - p.y * sc; hl = p; draw(); };
 }
 
 /* ---------- Team ---------- */
