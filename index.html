@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WYRE Centraal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@500;600&display=swap" rel="stylesheet">
+<style>
+/* VOICE: rustig werkinstrument voor een vezelteam, feiten eerst
+   IDEA: de netwerktekening — kleuren van feed, primair, dist en las zoals op de trackers
+   PICTURE: het overzicht per POP-zone met voortgangsbalken in die kleuren
+   COLOUR and TYPE: wit/inkt, diep petrol als accent, tekeningkleuren voor status; Inter
+   LAYOUT: vaste kopbalk, één kolom tot 1240px, tabellen die op de telefoon stapelen */
+:root{color-scheme:light dark;
+ --bg:light-dark(#f6f7f8,#0f1416);--card:light-dark(#fff,#162024);--ink:light-dark(#14181b,#e8eef0);
+ --mute:light-dark(#5d6a70,#93a3a9);--line:light-dark(#e1e6e8,#26343a);--acc:light-dark(#0b5d63,#4fb3ba);
+ --acc-ink:#fff;--warn:light-dark(#9a4b00,#ffb067);--bad:light-dark(#b3261e,#ff8a80);
+ --feed:#2e9d4a;--prim:#e6b800;--dist:#2f6fd6;--gevel:#64b5f6;--aerial:#d64f9a;--las:#e05aa3}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,sans-serif;overflow-x:clip}
+h1,h2,h3{font-family:"Inter Tight",Inter,sans-serif;line-height:1.1;margin:0;text-wrap:balance}
+h1{font-size:clamp(26px,3.4vw,36px)}h2{font-size:20px}h3{font-size:16px}
+a{color:var(--acc)}
+.top{position:sticky;top:0;z-index:5;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;gap:16px;padding:10px max(4vw,14px);flex-wrap:wrap}
+.brand{font:600 18px "Inter Tight",sans-serif;display:flex;align-items:center;gap:8px;margin-right:auto}
+.brand i{display:inline-flex;gap:2px}.brand i b{width:5px;height:18px;border-radius:2px}
+nav{display:flex;gap:4px;flex-wrap:wrap}
+nav a{padding:8px 12px;border-radius:8px;text-decoration:none;color:var(--ink);font-weight:500}
+nav a.on{background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--acc)}
+.who{font-size:13px;color:var(--mute);display:flex;gap:8px;align-items:center}
+main{max-width:1240px;margin:0 auto;padding:clamp(18px,3vw,36px) max(4vw,14px) 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.kpi .v{font:600 clamp(24px,3vw,32px) "Inter Tight",sans-serif;white-space:nowrap}
+.kpi .l{color:var(--mute);font-size:13px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.sp{flex:1}
+input,select,button,textarea{font:inherit;font-size:16px}
+input,select{padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink);min-height:44px}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid color-mix(in srgb,var(--acc) 45%,transparent);outline-offset:2px}
+button{min-height:44px;padding:0 16px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;font-weight:500}
+button.pri{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+button.bad{color:var(--bad)}
+button:disabled{opacity:.5;cursor:default}
+button.link{border:0;background:none;color:var(--acc);padding:0 4px;min-height:32px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th{text-align:left;font-weight:600;color:var(--mute);font-size:12.5px;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.click{cursor:pointer}tr.click:hover td{background:color-mix(in srgb,var(--acc) 6%,transparent)}
+.scroll{overflow-x:auto}
+.muted{color:var(--mute)}.small{font-size:13px}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;font-size:12.5px;border:1px solid var(--line);margin:2px 4px 2px 0;white-space:nowrap;background:var(--card)}
+.chip .dot{width:9px;height:9px;border-radius:50%}
+.bar{display:flex;height:8px;border-radius:4px;overflow:hidden;background:var(--line);min-width:90px}
+.bar span{display:block}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--mute);margin:6px 0 0}
+.legend span{display:inline-flex;align-items:center;gap:6px}.legend b{width:12px;height:4px;border-radius:2px;display:inline-block}
+.dp{margin-top:16px}
+.dp h3{display:flex;gap:10px;align-items:baseline;margin-bottom:8px}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.msg{padding:12px 14px;border-radius:10px;background:color-mix(in srgb,var(--acc) 10%,transparent);margin:12px 0}
+.msg.warn{background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.msg.bad{background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.auth{max-width:420px;margin:8vh auto;display:grid;gap:12px}
+.auth label{display:grid;gap:4px;font-size:14px;font-weight:500}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:6px}
+.tabs button{border:0;border-bottom:2px solid transparent;border-radius:0;background:none}
+.tabs button.on{border-bottom-color:var(--acc);color:var(--acc)}
+details summary{cursor:pointer;color:var(--acc);font-weight:500;min-height:32px}
+.hidden{display:none!important}
+@media(max-width:760px){.grid2{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:600px){table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px;border-bottom:1px solid var(--line)}.stack td{display:flow-root;border:0;padding:3px 0;padding-inline-start:8.5em;text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:8em;margin-inline-start:-8.5em;color:var(--mute);font-size:12px}.stack td:empty{display:none}.who span{display:none}}
+@media(prefers-reduced-motion:no-preference){.fade{animation:f .25s ease-out}@keyframes f{from{opacity:0;transform:translateY(4px)}}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><i><b style="background:var(--feed)"></b><b style="background:var(--prim)"></b><b style="background:var(--dist)"></b><b style="background:var(--las)"></b></i>WYRE Centraal</div>
+  <nav id="nav" class="hidden">
+    <a href="#overzicht" data-v="overzicht">Overzicht</a>
+    <a href="#import" data-v="import" class="beheer">Import</a>
+    <a href="#team" data-v="team" class="beheer">Team</a>
+  </nav>
+  <div class="who hidden" id="who"><span id="whoMail"></span><button class="link" id="uit">Uitloggen</button></div>
+</header>
+<main id="app"><p class="muted">Laden…</p></main>
+
+<script>
+// WYRE Centraal — Actuals-Excel parser. Werkt in de browser (SheetJS) en in Node (tests).
+const WYRE = (() => {
+  const pad = (v, n) => String(v).padStart(n, '0');
+  const txt = v => (v === null || v === undefined) ? '' : String(v).trim();
+  const num = v => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(String(v).replace(',', '.'));
+    return Number.isFinite(n) ? n : null;
+  };
+  const pad3 = v => /^\d{1,3}$/.test(txt(v)) ? pad(txt(v), 3) : txt(v);
+
+  function normKabel(raw) {
+    let s = txt(raw).toUpperCase().replace(/\s+/g, '').replace(/->|>/g, '-');
+    if (!s) return '';
+    if (s === 'FEED') return 'FEED';
+    if (s.includes('-')) {
+      const parts = s.split('-').filter(Boolean).map(p => {
+        const m = p.match(/^(\d{1,3})([A-E]?)$/);
+        return m ? pad(m[1], 3) + m[2] : p;
+      });
+      return parts.join('-');
+    }
+    const m = s.match(/^(\d{1,3})([A-E]?)$/);
+    return m ? pad(m[1], 3) + m[2] : s;
+  }
+
+  function normPoc(raw) {
+    const s = txt(raw).toUpperCase().replace(/\s+/g, '');
+    if (!s) return '';
+    const m = s.match(/(\d{2,3})([A-E])(M?)(\d{1,2})/);
+    return m ? pad(m[1], 3) + m[2] + m[3] + pad(m[4], 2) : s;
+  }
+
+  function kabelSoort(k) {
+    if (k === 'FEED') return 'feed';
+    if (k.includes('-')) return 'primair';
+    if (/^\d{3}[A-E]$/.test(k)) return 'dist';
+    return 'overig';
+  }
+
+  function pocType(v) {
+    const s = txt(v).toLowerCase();
+    if (s.startsWith('aer')) return 'Aerial';
+    if (s.startsWith('fa') || s.startsWith('gev')) return 'Façade';
+    return 'UG';
+  }
+
+  function toDate(v) {
+    if (v === null || v === undefined || v === '') return '';
+    if (v instanceof Date && !isNaN(v)) {
+      return `${v.getFullYear()}-${pad(v.getMonth() + 1, 2)}-${pad(v.getDate(), 2)}`;
+    }
+    if (typeof v === 'number') { // Excel-serienummer
+      const d = new Date(Math.round((v - 25569) * 86400000));
+      return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1, 2)}-${pad(d.getUTCDate(), 2)}`;
+    }
+    const s = txt(v);
+    let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (m) return `${m[1]}-${pad(m[2], 2)}-${pad(m[3], 2)}`;
+    m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})/);
+    if (m) return `${m[3]}-${pad(m[2], 2)}-${pad(m[1], 2)}`;
+    return '';
+  }
+
+  const zoneId = (hub, pop) => `MRO_${txt(hub).toUpperCase().replace(/\s+/g, '_')}_POP_${pad3(pop)}`;
+  const zoneLabel = (hub, pop) => {
+    const h = txt(hub).toUpperCase();
+    const m = h.match(/^(.*?)_?(\d+)$/);
+    const naam = m ? m[1] : h;
+    const nr = m ? m[2] : '';
+    const mooi = naam.toLowerCase().replace(/(^|[-\s_])(\w)/g, (a, b, c) => (b === '_' ? ' ' : b) + c.toUpperCase());
+    return `${mooi}${nr ? ' ' + nr : ''} · POP ${pad3(pop)}`;
+  };
+
+  function headerIndex(header) {
+    const h = header.map(x => txt(x).toLowerCase());
+    const find = (...names) => {
+      for (const n of names) { const i = h.findIndex(x => x === n || x.startsWith(n)); if (i >= 0) return i; }
+      return -1;
+    };
+    return {
+      hub: find('hub/mro zone', 'hub', 'mro'), pop: find('popzone', 'pop zone', 'pop'),
+      dp: find('dp nr', 'dp'), kabel: find('kabelnr', 'kabel'), werk: find('werktype'),
+      poc: find('poc nr', 'poc'), type: find('façade/ug', 'facade/ug', 'façade', 'facade'),
+      lasjes: find('aantal lasjes', 'lasjes'), kabeltype: find('type kabel'),
+      meters: find('meters blazen', 'meters'), boqOk: find('boq ok'), boqNr: find('boq nummer'),
+      end: find('enddate', 'einddatum'), aannemer: find('aannemer'), comment: find('commentaar', 'opmerking'),
+      gepland: find('ingeplande datum', 'gepland')
+    };
+  }
+
+  function classify(r) {
+    const werk = r.w.toLowerCase();
+    if (r.p) return 'poc-las';
+    if (['blazen', 'facade', 'aerial', 'gevel'].includes(werk) && (r.m || r.k)) return 'blazen';
+    if (werk === 'lassen' || r.l) {
+      if (r.k === 'FEED') return 'feed-las';
+      return r.dp === '010' ? 'pdp-las' : 'dp-las';
+    }
+    if (r.m) return 'blazen';
+    return 'overig';
+  }
+
+  function blaasType(r) {
+    const werk = r.w.toLowerCase();
+    if (werk === 'facade' || werk === 'gevel') return 'gevel';
+    if (werk === 'aerial') return 'aerial';
+    return kabelSoort(r.k);
+  }
+
+  // rows: array van arrays (eerste rij = kopteksten). Geeft {rijen, waarschuwingen}.
+  function parseActuals(rows, tabNaam) {
+    const out = [], warn = [];
+    if (!rows.length) return { rijen: out, waarschuwingen: warn };
+    const ix = headerIndex(rows[0]);
+    const get = (row, k) => ix[k] >= 0 ? row[ix[k]] : null;
+    const jaar = (tabNaam.match(/20\d\d/) || [''])[0];
+    rows.slice(1).forEach((row, i) => {
+      if (!row || !row.slice(0, 6).some(v => txt(v) !== '')) return;
+      const hub = txt(get(row, 'hub')), pop = txt(get(row, 'pop'));
+      if (!hub || !pop) { warn.push(`${tabNaam} rij ${i + 2}: geen HUB/POP-zone`); return; }
+      const kRaw = txt(get(row, 'kabel')), pRaw = txt(get(row, 'poc'));
+      const r = {
+        z: zoneId(hub, pop), j: jaar, n: i + 2, w: txt(get(row, 'werk')),
+        dp: pad3(get(row, 'dp')), k: normKabel(kRaw), p: normPoc(pRaw),
+        t: pocType(get(row, 'type')), l: num(get(row, 'lasjes')), kt: txt(get(row, 'kabeltype')),
+        m: num(get(row, 'meters')), d: toDate(get(row, 'end')), a: txt(get(row, 'aannemer')),
+        c: txt(get(row, 'comment')), b: txt(get(row, 'boqNr')), bo: get(row, 'boqOk') === true
+      };
+      if (!r.k && /blazen/i.test(r.w)) { // primaire kabel staat soms alleen in het commentaar ("010 - 015")
+        const m = r.c.match(/\b(0?\d{2})\s*-\s*(0?\d{2})(?:\s*-\s*(0?\d{2}))?(?:\s*-\s*(0?\d{2}))?/);
+        if (m) { r.k = normKabel(m.slice(1).filter(Boolean).join('-')); r.kc = 1; }
+      }
+      if (kRaw && r.k !== kRaw.toUpperCase()) r.kr = kRaw;
+      if (pRaw && r.p !== pRaw.toUpperCase()) r.pr = pRaw;
+      if (r.p && !/^\d{3}[A-E]M?\d{2}$/.test(r.p)) warn.push(`${tabNaam} rij ${r.n}: POC "${pRaw}" niet herkend`);
+      if (r.p && /BDP/i.test(pRaw)) r.bdp = true;
+      r.s = classify(r);
+      if (r.s === 'blazen') r.bt = blaasType(r);
+      if (!r.d) warn.push(`${tabNaam} rij ${r.n}: geen einddatum`);
+      for (const key of Object.keys(r)) if (r[key] === '' || r[key] === null || r[key] === false) delete r[key];
+      out.push(r);
+    });
+    return { rijen: out, waarschuwingen: warn };
+  }
+
+  function parseGepland(rows, tabNaam) {
+    const out = [];
+    if (!rows.length) return out;
+    const ix = headerIndex(rows[0]);
+    const get = (row, k) => ix[k] >= 0 ? row[ix[k]] : null;
+    rows.slice(1).forEach(row => {
+      if (!row) return;
+      const hub = txt(get(row, 'hub')), pop = txt(get(row, 'pop'));
+      if (!hub || !pop) return;
+      const g = { z: zoneId(hub, pop), dp: pad3(get(row, 'dp')), k: normKabel(get(row, 'kabel')),
+        w: txt(get(row, 'werk')), d: toDate(get(row, 'gepland')), c: txt(row[(ix.gepland >= 0 ? ix.gepland : 5) + 1]) };
+      for (const key of Object.keys(g)) if (g[key] === '') delete g[key];
+      out.push(g);
+    });
+    return out;
+  }
+
+  // sheets: [{naam, rows}] → {zones: {id: {...}}, totaal, waarschuwingen}
+  function buildZones(sheets) {
+    const zones = {}, warn = [];
+    let totaal = 0;
+    const zone = (id, hub, pop) => zones[id] || (zones[id] = { id, hub, pop: pad3(pop), label: zoneLabel(hub, pop), rijen: [], gepland: [] });
+    for (const sh of sheets) {
+      const n = sh.naam.toLowerCase();
+      if (n.startsWith('actuals')) {
+        const res = parseActuals(sh.rows, sh.naam);
+        warn.push(...res.waarschuwingen);
+        const ix = headerIndex(sh.rows[0] || []);
+        res.rijen.forEach(r => {
+          const src = sh.rows[r.n - 1];
+          zone(r.z, txt(src[ix.hub]).toUpperCase(), txt(src[ix.pop])).rijen.push(r);
+          totaal++;
+        });
+      } else if (n.includes('nog blazen') || n.includes('gepland') || n.includes('planning')) {
+        const ix = headerIndex(sh.rows[0] || []);
+        parseGepland(sh.rows, sh.naam).forEach((g, i) => {
+          const src = sh.rows.slice(1).filter(r => r && txt(r[ix.hub]) && txt(r[ix.pop]))[i];
+          zone(g.z, txt(src[ix.hub]).toUpperCase(), txt(src[ix.pop])).gepland.push(g);
+        });
+      }
+    }
+    for (const z of Object.values(zones)) {
+      z.rijen.forEach(r => delete r.z);
+      z.gepland.forEach(g => delete g.z);
+      z.rijen.sort((a, b) => (a.d || '').localeCompare(b.d || ''));
+    }
+    return { zones, totaal, waarschuwingen: warn };
+  }
+
+  // Samenvatting van één zone (gebruikt door overzicht en detail).
+  function summarize(z) {
+    const kabels = {}, pocs = {}, dps = {};
+    let meters = 0, lasjes = 0, laatste = '';
+    for (const r of z.rijen) {
+      if (r.d && r.d > laatste) laatste = r.d;
+      if (r.l) lasjes += r.l;
+      if (r.s === 'blazen' && r.k) {
+        const k = kabels[r.k] || (kabels[r.k] = { k: r.k, soort: r.bt, meters: 0, d: '', a: new Set(), kt: '', dp: r.dp });
+        k.meters += r.m || 0; meters += r.m || 0;
+        if ((r.d || '') > k.d) k.d = r.d;
+        if (r.a) k.a.add(r.a);
+        if (r.kt) k.kt = r.kt;
+        if (r.bt === 'gevel' || r.bt === 'aerial') k.soort = r.bt;
+      } else if (r.s === 'poc-las') {
+        const p = pocs[r.p] || (pocs[r.p] = { p: r.p, t: r.t, d: '', l: 0, a: new Set(), dp: r.dp, k: r.k });
+        p.l += r.l || 0;
+        if ((r.d || '') > p.d) p.d = r.d;
+        if (r.a) p.a.add(r.a);
+        if (r.t && r.t !== 'UG') p.t = r.t;
+      } else if (r.s === 'dp-las' || r.s === 'pdp-las' || r.s === 'feed-las') {
+        const key = r.s === 'feed-las' ? 'FEED' : r.dp;
+        (dps[key] || (dps[key] = [])).push(r);
+      }
+    }
+    return { kabels: Object.values(kabels), pocs: Object.values(pocs), dps, meters, lasjes, laatste };
+  }
+
+  return { normKabel, normPoc, kabelSoort, toDate, zoneId, zoneLabel, parseActuals, parseGepland, buildZones, summarize };
+})();
+if (typeof module !== 'undefined') module.exports = WYRE;
+
+</script>
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
+import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  sendEmailVerification, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, writeBatch, serverTimestamp }
+  from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCDA2QLnrjz7DIg_DCdvMaBjBOILCknhaU",
+  authDomain: "planningstool-9bf2b.firebaseapp.com",
+  projectId: "planningstool-9bf2b",
+  storageBucket: "planningstool-9bf2b.firebasestorage.app",
+  messagingSenderId: "723254897137",
+  appId: "1:723254897137:web:cef1161b43cdd45f573c50"
+};
+const fb = initializeApp(firebaseConfig);
+const auth = getAuth(fb); auth.languageCode = 'nl';
+const db = getFirestore(fb);
+const ZONES = () => collection(db, 'wyre', 'v1', 'zones');
+const META = () => doc(db, 'wyre', 'v1', 'meta', 'import');
+
+const $ = s => document.querySelector(s);
+const app = $('#app');
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const nf = new Intl.NumberFormat('nl-BE');
+const fmtD = d => d ? d.split('-').reverse().join('/') : '';
+const COL = { feed: 'var(--feed)', primair: 'var(--prim)', dist: 'var(--dist)', gevel: 'var(--gevel)', aerial: 'var(--aerial)', overig: 'var(--mute)' };
+const SOORT = { feed: 'Feed', primair: 'Primaire dist.', dist: 'Dist', gevel: 'Gevel', aerial: 'Aerial', overig: 'Overig' };
+const S = { user: null, rol: null, naam: '', zones: {}, meta: null, team: [], unsub: [], pending: null, zoneFilter: '', hub: '' };
+
+const AUTHFOUT = {
+  'auth/invalid-credential': 'E-mailadres of wachtwoord klopt niet.',
+  'auth/wrong-password': 'E-mailadres of wachtwoord klopt niet.',
+  'auth/user-not-found': 'Er bestaat nog geen account met dit e-mailadres. Kies "Account aanmaken".',
+  'auth/email-already-in-use': 'Er bestaat al een account met dit e-mailadres. Log in, of kies "Wachtwoord vergeten".',
+  'auth/weak-password': 'Kies een wachtwoord van minstens 8 tekens.',
+  'auth/invalid-email': 'Dit is geen geldig e-mailadres.',
+  'auth/too-many-requests': 'Te veel pogingen. Wacht even en probeer opnieuw.',
+  'auth/network-request-failed': 'Geen verbinding met internet.'
+};
+const fout = e => AUTHFOUT[e?.code] || (e?.code === 'permission-denied' ? 'Je hebt hier geen rechten voor.' : (e?.message || String(e)));
+
+/* ---------- Inloggen ---------- */
+function authView(mode = 'in', msg = '') {
+  stopData(); $('#nav').classList.add('hidden'); $('#who').classList.add('hidden');
+  app.innerHTML = `<form class="auth card fade" id="af">
+    <h1>WYRE Centraal</h1>
+    <p class="muted small">Opvolging van blazen, lassen en afrekenen per POP-zone, voor het WYRE-team.</p>
+    <div class="tabs"><button type="button" data-m="in" class="${mode === 'in' ? 'on' : ''}">Inloggen</button><button type="button" data-m="nieuw" class="${mode === 'nieuw' ? 'on' : ''}">Account aanmaken</button></div>
+    <label>Werk-e-mailadres<input type="email" id="em" autocomplete="username" required></label>
+    <label>Wachtwoord<input type="password" id="pw" autocomplete="${mode === 'in' ? 'current-password' : 'new-password'}" minlength="8" required></label>
+    ${mode === 'nieuw' ? '<label>Wachtwoord herhalen<input type="password" id="pw2" autocomplete="new-password" minlength="8" required></label>' : ''}
+    <div id="am">${msg}</div>
+    <button class="pri" type="submit">${mode === 'in' ? 'Inloggen' : 'Account aanmaken'}</button>
+    ${mode === 'in' ? '<button type="button" class="link" id="vergeten">Wachtwoord vergeten?</button>' : '<p class="muted small">Je krijgt een mail om je e-mailadres te bevestigen. Daarna kan een beheerder je toegang geven, als dat nog niet gebeurd is.</p>'}
+  </form>`;
+  app.querySelectorAll('[data-m]').forEach(b => b.onclick = () => authView(b.dataset.m));
+  const say = (t, k = '') => $('#am').innerHTML = `<div class="msg ${k}">${esc(t)}</div>`;
+  $('#af').onsubmit = async e => {
+    e.preventDefault();
+    const em = $('#em').value.trim(), pw = $('#pw').value;
+    try {
+      if (mode === 'nieuw') {
+        if (pw !== $('#pw2').value) return say('De wachtwoorden zijn niet gelijk.', 'bad');
+        const c = await createUserWithEmailAndPassword(auth, em, pw);
+        await sendEmailVerification(c.user);
+      } else await signInWithEmailAndPassword(auth, em, pw);
+    } catch (err) { say(fout(err), 'bad'); }
+  };
+  const v = $('#vergeten');
+  if (v) v.onclick = async () => {
+    const em = $('#em').value.trim();
+    if (!em) return say('Vul eerst je e-mailadres in.', 'warn');
+    try { await sendPasswordResetEmail(auth, em); say('Als dit adres een account heeft, staat er nu een mail klaar om je wachtwoord opnieuw in te stellen.'); }
+    catch (err) { say(fout(err), 'bad'); }
+  };
+}
+
+function verifyView(u) {
+  app.innerHTML = `<div class="auth card fade"><h2>Bevestig je e-mailadres</h2>
+    <p>We stuurden een mail naar <b>${esc(u.email)}</b>. Klik op de link in die mail (kijk ook bij ongewenste e-mail) en kom dan hier terug.</p>
+    <div id="vm"></div>
+    <button class="pri" id="klaar">Ik heb bevestigd</button>
+    <button id="opn">Mail opnieuw sturen</button>
+    <button class="link" id="ander">Ander account</button></div>`;
+  const say = (t, k = '') => $('#vm').innerHTML = `<div class="msg ${k}">${esc(t)}</div>`;
+  $('#klaar').onclick = async () => {
+    await u.reload();
+    if (auth.currentUser.emailVerified) { await auth.currentUser.getIdToken(true); start(auth.currentUser); }
+    else say('Nog niet bevestigd. Klik eerst op de link in de mail.', 'warn');
+  };
+  $('#opn').onclick = async () => { try { await sendEmailVerification(u); say('Nieuwe mail verstuurd.'); } catch (e) { say(fout(e), 'bad'); } };
+  $('#ander').onclick = () => signOut(auth);
+}
+
+function noAccessView(u) {
+  app.innerHTML = `<div class="auth card fade"><h2>Nog geen toegang</h2>
+    <p>Je account <b>${esc(u.email)}</b> staat nog niet op de toegangslijst van WYRE Centraal.</p>
+    <p class="muted">Vraag een beheerder om je toe te voegen onder <i>Team</i>. Daarna kun je hier opnieuw proberen.</p>
+    <button class="pri" id="opnieuw">Opnieuw proberen</button><button class="link" id="ander">Uitloggen</button></div>`;
+  $('#opnieuw').onclick = () => start(u);
+  $('#ander').onclick = () => signOut(auth);
+}
+
+async function start(u) {
+  app.innerHTML = '<p class="muted">Toegang controleren…</p>';
+  let t;
+  try { t = await getDoc(doc(db, 'toegang', u.email.toLowerCase())); }
+  catch (e) { return noAccessView(u); }
+  if (!t.exists()) return noAccessView(u);
+  S.user = u; S.rol = t.data().rol || 'lid'; S.naam = t.data().naam || u.email;
+  $('#nav').classList.remove('hidden'); $('#who').classList.remove('hidden');
+  $('#whoMail').textContent = S.naam;
+  document.querySelectorAll('.beheer').forEach(a => a.classList.toggle('hidden', S.rol !== 'beheer'));
+  startData(); route();
+}
+
+onAuthStateChanged(auth, u => {
+  if (!u) { S.user = null; return authView(); }
+  if (!u.emailVerified) return verifyView(u);
+  start(u);
+});
+$('#uit').onclick = () => signOut(auth);
+
+/* ---------- Data ---------- */
+function stopData() { S.unsub.forEach(f => f()); S.unsub = []; S.zones = {}; S.meta = null; S.team = []; }
+function startData() {
+  stopData();
+  S.unsub.push(onSnapshot(ZONES(), snap => {
+    S.zones = {}; snap.forEach(d => S.zones[d.id] = d.data()); S.loaded = true; rerender();
+  }, e => { app.innerHTML = `<div class="msg bad">Kan de gegevens niet laden: ${esc(fout(e))}</div>`; }));
+  S.unsub.push(onSnapshot(META(), d => { S.meta = d.exists() ? d.data() : null; rerender(); }, () => {}));
+  if (S.rol === 'beheer') S.unsub.push(onSnapshot(collection(db, 'toegang'), snap => {
+    S.team = []; snap.forEach(d => S.team.push({ email: d.id, ...d.data() }));
+    S.team.sort((a, b) => (a.naam || a.email).localeCompare(b.naam || b.email)); if (view() === 'team') rerender();
+  }, () => {}));
+}
+
+/* ---------- Routing ---------- */
+const view = () => (location.hash.slice(1).split('/')[0] || 'overzicht');
+function route() {
+  if (!S.user) return;
+  const v = view();
+  document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.v === v || (v === 'zone' && a.dataset.v === 'overzicht')));
+  if ((v === 'import' || v === 'team') && S.rol !== 'beheer') { location.hash = 'overzicht'; return; }
+  ({ overzicht: overzichtView, zone: zoneView, import: importView, team: teamView }[v] || overzichtView)();
+}
+let rt; function rerender() { if (view() === 'import' && S.pending) return; clearTimeout(rt); rt = setTimeout(route, 30); }
+addEventListener('hashchange', () => { route(); scrollTo(0, 0); });
+
+/* ---------- Overzicht ---------- */
+function zoneStats(z) {
+  const s = WYRE.summarize(z);
+  const pt = { UG: 0, 'Façade': 0, Aerial: 0 }; s.pocs.forEach(p => pt[p.t] = (pt[p.t] || 0) + 1);
+  const ks = {}; s.kabels.forEach(k => ks[k.soort] = (ks[k.soort] || 0) + 1);
+  const dpl = Object.values(s.dps).reduce((a, b) => a + b.length, 0);
+  return { ...s, pt, ks, dpl };
+}
+function kabelBar(ks) {
+  const tot = Object.values(ks).reduce((a, b) => a + b, 0) || 1;
+  return `<div class="bar" title="${Object.entries(ks).map(([k, v]) => `${SOORT[k]}: ${v}`).join(', ')}">${['feed', 'primair', 'dist', 'gevel', 'aerial', 'overig'].filter(k => ks[k]).map(k => `<span style="width:${ks[k] / tot * 100}%;background:${COL[k]}"></span>`).join('')}</div>`;
+}
+function overzichtView() {
+  const zs = Object.values(S.zones);
+  if (!S.loaded) { app.innerHTML = '<p class="muted">Gegevens laden…</p>'; return; }
+  if (!zs.length) {
+    app.innerHTML = `<h1>Overzicht</h1><div class="msg">Er staan nog geen gegevens in de database. ${S.rol === 'beheer' ? '<a href="#import">Importeer de Actuals-Excel</a> om te beginnen.' : 'Een beheerder moet eerst de Actuals-Excel importeren.'}</div>`;
+    return;
+  }
+  const hubs = [...new Set(zs.map(z => z.hub))].sort();
+  const stats = zs.map(z => ({ z, s: zoneStats(z) }));
+  const alle = { pocs: 0, m: 0, k: 0, dpl: 0 };
+  stats.forEach(({ s }) => { alle.pocs += s.pocs.length; alle.m += s.meters; alle.k += s.kabels.length; alle.dpl += s.dpl; });
+  const meta = S.meta ? `Laatste import: ${esc(S.meta.bestand || '')} · ${S.meta.op?.toDate ? S.meta.op.toDate().toLocaleString('nl-BE', { dateStyle: 'short', timeStyle: 'short' }) : ''} door ${esc(S.meta.door || '')}` : '';
+  app.innerHTML = `<div class="fade">
+   <div class="row"><h1>Stand van zaken per POP-zone</h1><span class="sp"></span>${S.rol === 'beheer' ? '<button id="exp">Exporteer alles</button>' : ''}</div>
+   <p class="muted small">${meta}</p>
+   <div class="kpis">
+    <div class="kpi"><div class="v">${zs.length}</div><div class="l">POP-zones met uitgevoerd werk</div></div>
+    <div class="kpi"><div class="v">${nf.format(alle.pocs)}</div><div class="l">POC's gelast</div></div>
+    <div class="kpi"><div class="v">${nf.format(Math.round(alle.m / 100) / 10)} km</div><div class="l">kabel geblazen (${nf.format(alle.k)} kabels)</div></div>
+    <div class="kpi"><div class="v">${nf.format(alle.dpl)}</div><div class="l">DP-, PDP- en feedlassen</div></div>
+   </div>
+   <div class="card">
+    <div class="row"><select id="hub" aria-label="HUB/MRO-zone"><option value="">Alle HUB/MRO-zones</option>${hubs.map(h => `<option ${h === S.hub ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select>
+    <input id="zq" placeholder="Zoek POP-zone, kabel of POC" value="${esc(S.zoneFilter)}" style="flex:1 1 220px"></div>
+    <div class="legend"><span><b style="background:var(--feed)"></b>Feed</span><span><b style="background:var(--prim)"></b>Primaire dist.</span><span><b style="background:var(--dist)"></b>Dist</span><span><b style="background:var(--gevel)"></b>Gevel</span><span><b style="background:var(--aerial)"></b>Aerial</span></div>
+    <div class="scroll"><table class="stack" id="zt"><thead><tr><th>POP-zone</th><th>Kabels geblazen</th><th class="n">Meters</th><th class="n">POC's gelast</th><th>Type POC's</th><th class="n">DP/PDP-lassen</th><th class="n">Laatste werk</th><th class="n">Gepland</th></tr></thead><tbody></tbody></table></div>
+   </div></div>`;
+  const draw = () => {
+    const q = S.zoneFilter.trim().toUpperCase();
+    const rows = stats.filter(({ z, s }) => (!S.hub || z.hub === S.hub) && (!q || z.label.toUpperCase().includes(q) || z.id.includes(q)
+      || s.kabels.some(k => k.k.includes(q)) || s.pocs.some(p => p.p.includes(q))))
+      .sort((a, b) => (b.s.laatste || '').localeCompare(a.s.laatste || ''));
+    $('#zt tbody').innerHTML = rows.map(({ z, s }) => `<tr class="click" data-z="${esc(z.id)}">
+      <td><b>${esc(z.label)}</b></td>
+      <td><div class="row" style="gap:8px"><span class="n" style="width:2.5em">${s.kabels.length}</span>${kabelBar(s.ks)}</div></td>
+      <td class="n">${nf.format(Math.round(s.meters))}</td>
+      <td class="n">${s.pocs.length}</td>
+      <td class="small">${Object.entries(s.pt).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(' · ')}</td>
+      <td class="n">${s.dpl}</td>
+      <td class="n">${fmtD(s.laatste)}</td>
+      <td class="n">${(z.gepland || []).length || ''}</td></tr>`).join('') || '<tr><td colspan="8" class="muted">Niets gevonden.</td></tr>';
+    app.querySelectorAll('tr[data-z]').forEach(tr => tr.onclick = () => location.hash = 'zone/' + tr.dataset.z);
+  };
+  draw();
+  $('#hub').onchange = e => { S.hub = e.target.value; draw(); };
+  $('#zq').oninput = e => { S.zoneFilter = e.target.value; draw(); };
+  const ex = $('#exp');
+  if (ex) ex.onclick = () => {
+    const blob = new Blob([JSON.stringify({ geexporteerd: new Date().toISOString(), meta: S.meta, zones: S.zones }, null, 1)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `wyre-centraal-export-${new Date().toISOString().slice(0, 10)}.json`; a.click(); URL.revokeObjectURL(a.href);
+  };
+}
+
+/* ---------- Zone-detail ---------- */
+function zoneView() {
+  const id = decodeURIComponent(location.hash.split('/')[1] || '');
+  const z = S.zones[id];
+  if (!S.loaded) { app.innerHTML = '<p class="muted">Gegevens laden…</p>'; return; }
+  if (!z) { app.innerHTML = `<p><a href="#overzicht">← Overzicht</a></p><div class="msg warn">Deze POP-zone staat niet in de database.</div>`; return; }
+  const s = zoneStats(z);
+  const chipK = k => `<span class="chip" title="${esc([...k.a].join(', '))}${k.kt ? ' · ' + esc(k.kt) + 'v' : ''}"><span class="dot" style="background:${COL[k.soort]}"></span><b>${esc(k.k)}</b> ${nf.format(Math.round(k.meters))} m · ${fmtD(k.d)}</span>`;
+  const chipP = p => `<span class="chip" title="${esc([...p.a].join(', '))}${p.l ? ' · ' + p.l + ' lasjes' : ''}"><span class="dot" style="background:var(--las)"></span><b>${esc(p.p)}</b>${p.t !== 'UG' ? ' ' + esc(p.t) : ''} · ${fmtD(p.d)}</span>`;
+  const top = s.kabels.filter(k => k.soort === 'feed' || k.soort === 'primair' || k.k.includes('-') || k.k === 'FEED');
+  const dpKeys = [...new Set([...s.kabels.filter(k => !top.includes(k)).map(k => k.k.slice(0, 3)), ...s.pocs.map(p => p.p.slice(0, 3)), ...Object.keys(s.dps).filter(k => k !== 'FEED')])].sort();
+  const lasRows = rs => rs.map(r => `<div class="small">${fmtD(r.d)} · ${r.l ? r.l + ' lasjes · ' : ''}${esc(r.a || '')}${r.c ? ' — <span class="muted">' + esc(r.c) + '</span>' : ''}</div>`).join('');
+  const dpBlock = dp => {
+    const ks = s.kabels.filter(k => !top.includes(k) && k.k.startsWith(dp)).sort((a, b) => a.k.localeCompare(b.k));
+    const ps = s.pocs.filter(p => p.p.startsWith(dp)).sort((a, b) => a.p.localeCompare(b.p));
+    const las = s.dps[dp] || [];
+    return `<div class="card dp"><h3>${dp === '010' ? 'PDP' : 'DP'} ${esc(dp)} <span class="muted small">${ks.length} kabels · ${ps.length} POC's gelast${las.length ? ' · ' + las.length + ' DP-lassen' : ''}</span></h3>
+      ${las.length ? `<details><summary>Lassen in ${dp === '010' ? 'de PDP' : 'de DP'}</summary>${lasRows(las)}</details>` : ''}
+      ${ks.length ? `<div><span class="muted small">Geblazen:</span><br>${ks.map(chipK).join('')}</div>` : ''}
+      ${ps.length ? `<div style="margin-top:6px"><span class="muted small">Gelast:</span><br>${ps.map(chipP).join('')}</div>` : ''}</div>`;
+  };
+  app.innerHTML = `<div class="fade"><p><a href="#overzicht">← Overzicht</a></p>
+    <h1>${esc(z.label)}</h1><p class="muted small">${esc(z.id)}</p>
+    <div class="kpis">
+     <div class="kpi"><div class="v">${s.pocs.length}</div><div class="l">POC's gelast</div></div>
+     <div class="kpi"><div class="v">${s.kabels.length}</div><div class="l">kabels geblazen</div></div>
+     <div class="kpi"><div class="v">${nf.format(Math.round(s.meters))} m</div><div class="l">geblazen</div></div>
+     <div class="kpi"><div class="v">${fmtD(s.laatste) || '—'}</div><div class="l">laatste uitgevoerd werk</div></div>
+    </div>
+    ${(z.gepland || []).length ? `<div class="card"><h2>Gepland</h2><table><tbody>${z.gepland.map(g => `<tr><td><b>${esc(g.k || g.dp)}</b></td><td>${esc(g.w || '')}</td><td class="n">${fmtD(g.d) || 'nog geen datum'}</td><td class="small muted">${esc(g.c || '')}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    <div class="card dp"><h3>Feed en primaire distributie</h3>
+      ${top.length ? top.sort((a, b) => a.k.localeCompare(b.k)).map(chipK).join('') : '<span class="muted small">Nog niets geblazen.</span>'}
+      ${s.dps.FEED ? `<details><summary>Feedlassen</summary>${lasRows(s.dps.FEED)}</details>` : ''}</div>
+    ${dpKeys.map(dpBlock).join('')}
+    <div class="card dp"><div class="row"><h3>Alle regels uit de Actuals</h3><span class="sp"></span><input id="rq" placeholder="Filter regels" style="flex:0 1 240px"></div>
+     <div class="scroll"><table class="stack" id="rt"><thead><tr><th class="n">Datum</th><th>Werk</th><th>DP</th><th>Kabel</th><th>POC</th><th class="n">Lasjes</th><th class="n">Meters</th><th>Aannemer</th><th>BOQ</th><th>Commentaar</th></tr></thead><tbody></tbody></table></div></div>
+  </div>`;
+  const rows = [...z.rijen].reverse();
+  const drawR = () => {
+    const q = $('#rq').value.trim().toLowerCase();
+    $('#rt tbody').innerHTML = rows.filter(r => !q || JSON.stringify(r).toLowerCase().includes(q)).map(r => `<tr>
+      <td class="n">${fmtD(r.d)}</td><td>${esc(r.w || '')}</td><td>${esc(r.dp || '')}</td>
+      <td>${esc(r.k || '')}${r.kr ? ` <span class="muted small" title="Zo stond het in de Excel">(${esc(r.kr)})</span>` : ''}</td>
+      <td>${esc(r.p || '')}${r.p && r.t !== 'UG' ? ' <span class="muted small">' + esc(r.t) + '</span>' : ''}${r.pr ? ` <span class="muted small">(${esc(r.pr)})</span>` : ''}</td>
+      <td class="n">${r.l ?? ''}</td><td class="n">${r.m ? nf.format(r.m) : ''}</td><td>${esc(r.a || '')}</td>
+      <td>${r.b ? esc(r.b) : (r.bo ? 'OK' : '')}</td><td class="small">${esc(r.c || '')}</td></tr>`).join('');
+  };
+  drawR(); $('#rq').oninput = drawR;
+}
+
+/* ---------- Import ---------- */
+function importView() {
+  const p = S.pending;
+  app.innerHTML = `<div class="fade"><h1>Actuals importeren</h1>
+   <p class="muted">Kies de Excel <i>Actuals_lijst_WYRE_alle_zones_1.0 (nog in gebruik!).xlsx</i>. De tabbladen <i>Actuals 2025</i>, <i>Actuals 2026</i> en <i>nog blazen</i> worden ingelezen. De Excel zelf wordt niet aangepast.</p>
+   <div class="card"><div class="row"><input type="file" id="xf" accept=".xlsx,.xlsm,.xls"><span class="sp"></span>${p ? '<button id="annul">Annuleren</button><button class="pri" id="save">Opslaan in database</button>' : ''}</div>
+   <div id="im"></div></div>
+   ${p ? previewHtml(p) : ''}</div>`;
+  const say = (t, k = '') => $('#im').innerHTML = `<div class="msg ${k}">${t}</div>`;
+  $('#xf').onchange = async e => {
+    const f = e.target.files[0]; if (!f) return;
+    say('Excel lezen…');
+    try {
+      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+      const sheets = wb.SheetNames.map(n => ({ naam: n, rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null }) }));
+      const res = WYRE.buildZones(sheets);
+      if (!res.totaal) return say('In dit bestand staan geen tabbladen "Actuals …" met regels. Is dit de juiste Excel?', 'bad');
+      S.pending = { ...res, bestand: f.name }; importView();
+    } catch (err) { say('Kon de Excel niet lezen: ' + esc(fout(err)), 'bad'); }
+  };
+  if (!p) return;
+  $('#annul').onclick = () => { S.pending = null; importView(); };
+  $('#save').onclick = async () => {
+    $('#save').disabled = true; say('Opslaan…');
+    try {
+      const batch = writeBatch(db);
+      for (const z of Object.values(p.zones)) batch.set(doc(ZONES(), z.id), { ...z, bijgewerkt: serverTimestamp(), bron: p.bestand });
+      const weg = Object.keys(S.zones).filter(id => !p.zones[id]);
+      weg.forEach(id => batch.delete(doc(ZONES(), id)));
+      batch.set(META(), { bestand: p.bestand, door: S.naam, email: S.user.email, op: serverTimestamp(), regels: p.totaal, zones: Object.keys(p.zones).length });
+      await batch.commit();
+      S.pending = null; location.hash = 'overzicht';
+    } catch (err) { $('#save').disabled = false; say('Opslaan mislukt: ' + esc(fout(err)), 'bad'); }
+  };
+}
+function previewHtml(p) {
+  const zs = Object.values(p.zones).sort((a, b) => a.label.localeCompare(b.label));
+  return `<div class="card dp"><h2>Controle voor het opslaan</h2>
+   <p>${esc(p.bestand)}: <b>${nf.format(p.totaal)}</b> regels in <b>${zs.length}</b> POP-zones.</p>
+   ${p.waarschuwingen.length ? `<details><summary>${p.waarschuwingen.length} opmerkingen bij het inlezen</summary><ul class="small">${p.waarschuwingen.slice(0, 200).map(w => `<li>${esc(w)}</li>`).join('')}</ul></details>` : ''}
+   <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th class="n">Regels nu</th><th class="n">Regels nieuw</th><th class="n">Verschil</th><th class="n">Gepland</th></tr></thead><tbody>
+   ${zs.map(z => { const nu = S.zones[z.id]?.rijen?.length || 0; const d = z.rijen.length - nu; return `<tr><td>${esc(z.label)}</td><td class="n">${nu}</td><td class="n">${z.rijen.length}</td><td class="n" style="color:${d < 0 ? 'var(--bad)' : 'inherit'}">${d > 0 ? '+' : ''}${d}</td><td class="n">${z.gepland.length || ''}</td></tr>`; }).join('')}
+   </tbody></table></div>
+   ${Object.keys(S.zones).filter(id => !p.zones[id]).length ? `<div class="msg warn">Deze zones staan nu in de database maar niet in de Excel en worden verwijderd: ${Object.keys(S.zones).filter(id => !p.zones[id]).map(esc).join(', ')}</div>` : ''}
+   <p class="muted small">Opslaan vervangt de gegevens per zone door de inhoud van deze Excel.</p></div>`;
+}
+
+/* ---------- Team ---------- */
+function teamView() {
+  app.innerHTML = `<div class="fade"><h1>Team</h1>
+   <p class="muted">Wie hier staat, kan inloggen in WYRE Centraal zodra het e-mailadres bevestigd is. Beheerders kunnen ook importeren en het team beheren.</p>
+   <form class="card row" id="tf"><input type="email" id="te" placeholder="werk-e-mailadres" required style="flex:2 1 220px"><input id="tn" placeholder="naam" style="flex:1 1 160px">
+    <select id="tr"><option value="lid">Lid</option><option value="beheer">Beheerder</option></select><button class="pri">Toevoegen</button></form>
+   <div id="tm"></div>
+   <div class="card dp"><table class="stack"><thead><tr><th>Naam</th><th>E-mailadres</th><th>Rol</th><th></th></tr></thead><tbody>
+   ${S.team.map(t => `<tr><td>${esc(t.naam || '')}</td><td>${esc(t.email)}</td><td>${t.rol === 'beheer' ? 'Beheerder' : 'Lid'}</td>
+     <td class="n">${t.email === S.user.email.toLowerCase() ? '<span class="muted small">jij</span>' : `<button class="link bad" data-del="${esc(t.email)}">Verwijderen</button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Laden…</td></tr>'}
+   </tbody></table></div>
+   <p class="muted small">Een nieuw teamlid maakt zelf een account aan op deze pagina met hetzelfde e-mailadres en kiest daar zijn eigen wachtwoord.</p></div>`;
+  const say = (t, k = '') => $('#tm').innerHTML = `<div class="msg ${k}">${t}</div>`;
+  $('#tf').onsubmit = async e => {
+    e.preventDefault();
+    const em = $('#te').value.trim().toLowerCase();
+    try { await setDoc(doc(db, 'toegang', em), { naam: $('#tn').value.trim(), rol: $('#tr').value, toegevoegdDoor: S.user.email, op: serverTimestamp() }); say(`${esc(em)} toegevoegd.`); $('#tf').reset(); }
+    catch (err) { say(esc(fout(err)), 'bad'); }
+  };
+  app.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+    if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Zeker? Klik nog eens'; return; }
+    try { await deleteDoc(doc(db, 'toegang', b.dataset.del)); } catch (err) { say(esc(fout(err)), 'bad'); }
+  });
+}
+</script>
+</body>
+</html>
