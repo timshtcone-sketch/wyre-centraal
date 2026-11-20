@@ -429,6 +429,7 @@ const ZONES = () => collection(db, 'wyre', 'v1', 'zones');
 const META = () => doc(db, 'wyre', 'v1', 'meta', 'import');
 const TARGETS = () => doc(db, 'wyre', 'v1', 'plan', 'targets');
 const HPLIJST = () => doc(db, 'wyre', 'v1', 'plan', 'hp');
+const EINDEJAAR = () => doc(db, 'wyre', 'v1', 'plan', 'eindejaar');
 
 const $ = s => document.querySelector(s);
 /* Thema: auto / licht / donker, onthouden in deze browser */
@@ -449,7 +450,7 @@ const nf = new Intl.NumberFormat('nl-BE');
 const fmtD = d => d ? d.split('-').reverse().join('/') : '';
 const COL = { feed: 'var(--feed)', primair: 'var(--prim)', dist: 'var(--dist)', gevel: 'var(--gevel)', aerial: 'var(--aerial)', overig: 'var(--mute)' };
 const SOORT = { feed: 'Feed', primair: 'Primaire dist.', dist: 'Dist', gevel: 'Gevel', aerial: 'Aerial', overig: 'Overig' };
-const S = { targets: null, hp: null, maand: '', user: null, rol: null, naam: '', zones: {}, meta: null, team: [], unsub: [], pending: null, zoneFilter: '', hub: '' };
+const S = { eindejaar: null, targets: null, hp: null, maand: '', user: null, rol: null, naam: '', zones: {}, meta: null, team: [], unsub: [], pending: null, zoneFilter: '', hub: '' };
 
 const AUTHFOUT = {
   'auth/invalid-credential': 'E-mailadres of wachtwoord klopt niet.',
@@ -546,7 +547,7 @@ onAuthStateChanged(auth, u => {
 $('#uit').onclick = () => signOut(auth);
 
 /* ---------- Data ---------- */
-function stopData() { S.unsub.forEach(f => f()); S.unsub = []; S.zones = {}; S.meta = null; S.team = []; S.targets = null; S.hp = null; }
+function stopData() { S.unsub.forEach(f => f()); S.unsub = []; S.zones = {}; S.meta = null; S.team = []; S.targets = null; S.hp = null; S.eindejaar = null; }
 function startData() {
   stopData();
   S.unsub.push(onSnapshot(ZONES(), snap => {
@@ -554,6 +555,7 @@ function startData() {
   }, e => { app.innerHTML = `<div class="msg bad">Kan de gegevens niet laden: ${esc(fout(e))}</div>`; }));
   S.unsub.push(onSnapshot(META(), d => { S.meta = d.exists() ? d.data() : null; rerender(); }, () => {}));
   S.unsub.push(onSnapshot(TARGETS(), d => { S.targets = d.exists() ? d.data() : null; rerender(); }, () => {}));
+  S.unsub.push(onSnapshot(EINDEJAAR(), d => { S.eindejaar = d.exists() ? d.data() : null; rerender(); }, () => {}));
   S.unsub.push(onSnapshot(HPLIJST(), d => { S.hp = d.exists() ? d.data() : null; rerender(); }, () => {}));
   if (S.rol === 'beheer') S.unsub.push(onSnapshot(collection(db, 'toegang'), snap => {
     S.team = []; snap.forEach(d => S.team.push({ email: d.id, ...d.data() }));
@@ -693,8 +695,10 @@ function zoneView() {
 const SOORTEN = {
   actuals: 'Actuals (uitgevoerd werk)',
   targets: 'HP-targets per maand',
-  hp: 'HP per POC (Delivery planning)'
+  hp: 'HP per POC (Delivery planning)',
+  eindejaar: 'Taken per zone uit WYRE eindejaar 2026'
 };
+const naamNaarZone = n => { const m = String(n).toUpperCase().replace(/[-\s]/g, '').match(/^(.*?)(\d+)POP(\d+)$/); return m ? WYRE.zoneId(m[1] + '_' + m[2], m[3]) : null; };
 function leesSheets(wb) {
   return wb.SheetNames.map(n => {
     const ws = wb.Sheets[n];
@@ -721,8 +725,9 @@ function importView() {
     ${st('Actuals: <i>Actuals_lijst_WYRE_alle_zones…</i>', S.meta)}
     ${st('HP-targets per maand: <i>HP delivered … samenvatting</i> (blad "Detail per POP")', S.targets)}
     ${st('HP per POC: <i>Wyre MRO HP Delivery planning</i> (één tabblad per POP, alleen kolom # HP)', S.hp)}
+    ${st('Taken per zone: <i>WYRE eindejaar 2026</i> (JSON uit het oude artifact)', S.eindejaar)}
    </tbody></table></div>
-   <div class="card dp"><div class="row"><input type="file" id="xf" accept=".xlsx,.xlsm,.xls"><span class="sp"></span>${p ? '<button id="annul">Annuleren</button><button class="pri" id="save">Opslaan in database</button>' : ''}</div>
+   <div class="card dp"><div class="row"><input type="file" id="xf" accept=".xlsx,.xlsm,.xls,.json"><span class="sp"></span>${p ? '<button id="annul">Annuleren</button><button class="pri" id="save">Opslaan in database</button>' : ''}</div>
    <div id="im"></div></div>
    ${p ? previewHtml(p) : ''}</div>`;
   const say = (t, k = '') => $('#im').innerHTML = `<div class="msg ${k}">${t}</div>`;
@@ -730,8 +735,15 @@ function importView() {
     const f = e.target.files[0]; if (!f) return;
     say('Excel lezen…');
     try {
-      const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
-      const res = herken(leesSheets(wb), f.name);
+      let res;
+      if (/\.json$/i.test(f.name)) {
+        const j = JSON.parse(await f.text());
+        if (j.soort !== 'wyre-eindejaar' || !Array.isArray(j.pops)) return say('Dit JSON-bestand herken ik niet.', 'bad');
+        res = { soort: 'eindejaar', bestand: f.name, stand: j.stand || '', pops: j.pops.map(p => ({ ...p, id: naamNaarZone(p.naam) })) };
+      } else {
+        const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
+        res = herken(leesSheets(wb), f.name);
+      }
       if (!res) return say('Ik herken dit bestand niet. Verwacht: de Actuals-lijst, de HP-samenvatting met blad "Detail per POP", of de HP Delivery planning met een tabblad per POP.', 'bad');
       S.pending = res; importView();
     } catch (err) { say('Kon de Excel niet lezen: ' + esc(fout(err)), 'bad'); }
@@ -752,6 +764,9 @@ function importView() {
       } else if (p.soort === 'targets') {
         await setDoc(TARGETS(), { ...wie, pops: p.pops });
         S.pending = null; location.hash = 'uitrol';
+      } else if (p.soort === 'eindejaar') {
+        await setDoc(EINDEJAAR(), { ...wie, stand: p.stand, pops: p.pops });
+        S.pending = null; location.hash = 'uitrol';
       } else {
         await setDoc(HPLIJST(), { ...wie, zones: p.zones, n: p.n });
         S.pending = null; location.hash = 'uitrol';
@@ -760,6 +775,13 @@ function importView() {
   };
 }
 function previewHtml(p) {
+  if (p.soort === 'eindejaar') {
+    return `<div class="card dp"><h2>Controle: ${SOORTEN.eindejaar}</h2><p>${esc(p.bestand)} · stand ${esc(p.stand)} · <b>${p.pops.length}</b> POP-zones</p>
+     <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th>Herkend als</th><th>Doel</th><th class="n">Taken</th><th class="n">Klaar</th></tr></thead><tbody>
+     ${p.pops.map(z => { const n = Object.values(z.k).reduce((a, v) => a + v.n, 0), k = Object.values(z.k).reduce((a, v) => a + v.klaar, 0);
+       return `<tr><td>${esc(z.naam)}</td><td class="small">${z.id ? esc(z.id) : '<span class="late">niet herkend</span>'}</td><td>${maandNaam(z.doel)}</td><td class="n">${n}</td><td class="n">${k}</td></tr>`; }).join('')}
+     </tbody></table></div><p class="muted small">Dit is een vaste momentopname van ${esc(p.stand)}. Opslaan vervangt een eerdere versie.</p></div>`;
+  }
   const kop = `<h2>Controle: ${SOORTEN[p.soort]}</h2><p>${esc(p.bestand)}</p>`;
   if (p.soort === 'targets') {
     const nu = new Date().toISOString().slice(0, 7);
@@ -789,6 +811,14 @@ function previewHtml(p) {
 }
 
 /* ---------- Uitrol ---------- */
+const TK = [['blaas', 'Blazen'], ['PDP', 'PDP'], ['DP', 'DP'], ['POC', 'POC']];
+function takenHtml(id) {
+  const e = (S.eindejaar?.pops || []).find(p => p.id === id); if (!e) return '';
+  return `<details><summary>Taken (eindejaar, stand ${esc(S.eindejaar.stand)}) · doel ${maandNaam(e.doel)}</summary>
+   ${TK.map(([k, l]) => { const v = e.k[k]; if (!v?.n) return ''; const w = x => (x / v.n * 100).toFixed(1) + '%';
+     return `<div class="row small" style="gap:8px;margin:4px 0"><span style="width:3.5em" class="muted">${l}</span><div class="bar" style="flex:1"><span style="width:${w(v.klaar)};background:var(--feed)"></span><span style="width:${w(v.gepland)};background:var(--dist)"></span><span style="width:${w(v.planbaar)};background:var(--prim)"></span></div><span class="n" style="width:7em">${v.n - v.klaar ? (v.n - v.klaar) + ' open / ' + v.n : v.n + ' klaar'}</span></div>`; }).join('')}
+   <p class="small muted">Groen klaar · blauw gepland · geel planbaar · grijs wacht op civiel of vorige stap</p></details>`;
+}
 const MN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
 const MNL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 const maandNaam = (m, lang) => (lang ? MNL : MN)[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4);
@@ -832,6 +862,7 @@ function uitrolView() {
       <span>Nog open in de zone</span><b>${nf.format(u.hpOpen)} HP · ${u.open.length} POC's</b>
      </div>
      ${r.opm ? `<p class="small muted" style="margin:6px 0">${esc(r.opm)}</p>` : ''}
+     ${takenHtml(r.id)}
      ${!r.lijst ? '<div class="msg warn small">Deze zone staat niet in de HP-lijst; gelast en open HP zijn onbekend.</div>' : ''}
      ${open.length ? `<details><summary>Open POC's (${open.length})</summary>${open.map(o => `<span class="chip"><b>${esc(o.p)}</b> ${o.hp} HP</span>`).join('')}</details>` : ''}
      ${mdu.length ? `<details><summary>MDU-POC's zonder las (${mdu.length})</summary><p class="small muted">MDU-POC's worden niet gelast en komen dus niet als las in de Actuals.</p>${mdu.map(o => `<span class="chip"><b>${esc(o.p)}</b> ${o.hp} HP</span>`).join('')}</details>` : ''}
@@ -855,6 +886,11 @@ function uitrolView() {
     <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th class="n">Target ${MN[+M.slice(5) - 1]}</th><th class="n">Target ${MN[+M2.slice(5) - 1]}</th><th class="n">Target t/m ${MN[+M2.slice(5) - 1]}</th><th class="n">Gelast ${M.slice(0, 4)}</th><th class="n">Nog nodig t/m ${MN[+M2.slice(5) - 1]}</th><th class="n">Open HP</th></tr></thead><tbody>
     ${rows.filter(r => r.u.tMaand || r.u2.tMaand || r.u2.nodig).sort((a, b) => b.u2.nodig - a.u2.nodig).map(r => `<tr class="click" data-z="${esc(r.id)}"><td>${esc(r.label)}</td><td class="n">${r.u.tMaand ? nf.format(r.u.tMaand) : ''}</td><td class="n">${r.u2.tMaand ? nf.format(r.u2.tMaand) : ''}</td><td class="n">${nf.format(r.u2.cum)}</td><td class="n">${nf.format(r.u2.hpJaar)}</td><td class="n ${r.u2.nodig ? 'late' : 'ok'}">${r.u2.nodig ? nf.format(r.u2.nodig) : '✓'}</td><td class="n">${r.lijst ? nf.format(r.u.hpOpen) : '?'}</td></tr>`).join('')}
     </tbody></table></div></div>
+   ${S.eindejaar ? `<div class="card dp"><h2>Taken per zone uit WYRE eindejaar 2026</h2><p class="muted small">Vaste momentopname van ${esc(S.eindejaar.stand)}, overgenomen uit je oude artifact. Wordt niet automatisch bijgewerkt.</p>
+    <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th>Doel</th>${TK.map(([, l]) => `<th class="n">${l} open</th>`).join('')}<th class="n">Planbaar</th><th class="n">Wacht</th><th class="n">Meters</th><th class="n">% klaar</th></tr></thead><tbody>
+    ${[...S.eindejaar.pops].sort((a, b) => a.doel.localeCompare(b.doel) || a.naam.localeCompare(b.naam)).map(e => { const t = f => TK.reduce((a, [k]) => a + (e.k[k]?.[f] || 0), 0); const n = t('n'), kl = t('klaar');
+      return `<tr ${e.id ? `class="click" data-z="${esc(e.id)}"` : ''}><td>${esc(e.naam)}</td><td class="${e.doel < new Date().toISOString().slice(0, 7) && n > kl ? 'late' : ''}">${maandNaam(e.doel)}</td>${TK.map(([k]) => `<td class="n">${(e.k[k].n - e.k[k].klaar) || '–'}</td>`).join('')}<td class="n">${t('planbaar') || '–'}</td><td class="n">${t('wacht') || '–'}</td><td class="n">${e.k.blaas.m ? nf.format(e.k.blaas.m) : '–'}</td><td class="n">${n ? Math.round(kl / n * 100) : 100}%</td></tr>`; }).join('')}
+    </tbody></table></div></div>` : ''}
   </div>`;
   $('#mnd').onchange = e => { S.maand = e.target.value; uitrolView(); };
   app.querySelectorAll('tr[data-z]').forEach(tr => tr.onclick = () => location.hash = 'zone/' + tr.dataset.z);
