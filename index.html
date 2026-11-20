@@ -954,14 +954,19 @@ function uitrolView() {
   if (!S.uitrolData) {
     app.innerHTML = `<div class="fade"><h1>Uitrol</h1>
       <div class="msg">De Nov·Dec-uitrol staat nog niet in de database.${beheer ? '' : ' Een beheerder moet die eenmalig laden.'}</div>
-      ${beheer ? `<div class="card dp"><p>Laad de volledige Nov·Dec-uitrol in de database — dezelfde data en interface als het artifact. Dit hoeft maar één keer; daarna zien alle teamleden dezelfde uitrol.</p>
+      ${beheer ? `<div class="card dp"><p>Laad de volledige Nov·Dec-uitrol in de database — dezelfde data en interface als het artifact. Kies daarvoor het bestand <i>novdec-seed.json</i>. Dit hoeft maar één keer; daarna zien alle teamleden dezelfde uitrol.</p>
         <button class="pri" id="seed">Nov·Dec-uitrol in database laden</button><div id="sm"></div></div>` : ''}</div>`;
     if (beheer) {
       const say = (t, k = '') => $('#sm').innerHTML = `<div class="msg ${k}">${esc(t)}</div>`;
       $('#seed').onclick = async () => {
         $('#seed').disabled = true; say('Laden…');
         try {
-          const j = await fetch('novdec-seed.json?v=' + Date.now()).then(r => { if (!r.ok) throw new Error('Kon novdec-seed.json niet ophalen'); return r.json(); });
+          const j = await new Promise((ok, nok) => { // het bestand staat niet (meer) openbaar online: kies het zelf
+            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json';
+            inp.onchange = async () => { try { ok(JSON.parse(await inp.files[0].text())); } catch (e) { nok(new Error('Dit is geen geldig novdec-seed.json-bestand')); } };
+            inp.click(); setTimeout(() => { if (!inp.files?.length) { $('#seed').disabled = false; say('Kies het bestand novdec-seed.json om de uitrol te laden.'); } }, 60000);
+          });
+          if (!j || !j.data || !j.act) throw new Error('Dit is geen novdec-seed.json-bestand');
           await setDoc(UITROL(), {
             data: JSON.stringify(j.data), act: JSON.stringify(j.act),
             stat: JSON.stringify(j.stat), topo: JSON.stringify(j.topo),
