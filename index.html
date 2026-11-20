@@ -430,6 +430,7 @@ const META = () => doc(db, 'wyre', 'v1', 'meta', 'import');
 const TARGETS = () => doc(db, 'wyre', 'v1', 'plan', 'targets');
 const HPLIJST = () => doc(db, 'wyre', 'v1', 'plan', 'hp');
 const EINDEJAAR = () => doc(db, 'wyre', 'v1', 'plan', 'eindejaar');
+const UITROL = () => doc(db, 'wyre', 'v1', 'uitrol', 'novdec');
 
 const $ = s => document.querySelector(s);
 /* Thema: auto / licht / donker, onthouden in deze browser */
@@ -450,7 +451,7 @@ const nf = new Intl.NumberFormat('nl-BE');
 const fmtD = d => d ? d.split('-').reverse().join('/') : '';
 const COL = { feed: 'var(--feed)', primair: 'var(--prim)', dist: 'var(--dist)', gevel: 'var(--gevel)', aerial: 'var(--aerial)', overig: 'var(--mute)' };
 const SOORT = { feed: 'Feed', primair: 'Primaire dist.', dist: 'Dist', gevel: 'Gevel', aerial: 'Aerial', overig: 'Overig' };
-const S = { eindejaar: null, targets: null, hp: null, maand: '', user: null, rol: null, naam: '', zones: {}, meta: null, team: [], unsub: [], pending: null, zoneFilter: '', hub: '' };
+const S = { eindejaar: null, targets: null, hp: null, maand: '', user: null, rol: null, naam: '', zones: {}, meta: null, team: [], unsub: [], pending: null, zoneFilter: '', hub: '', uitrolData: undefined, uitrolVer: null };
 
 const AUTHFOUT = {
   'auth/invalid-credential': 'E-mailadres of wachtwoord klopt niet.',
@@ -547,7 +548,7 @@ onAuthStateChanged(auth, u => {
 $('#uit').onclick = () => signOut(auth);
 
 /* ---------- Data ---------- */
-function stopData() { S.unsub.forEach(f => f()); S.unsub = []; S.zones = {}; S.meta = null; S.team = []; S.targets = null; S.hp = null; S.eindejaar = null; }
+function stopData() { S.unsub.forEach(f => f()); S.unsub = []; S.zones = {}; S.meta = null; S.team = []; S.targets = null; S.hp = null; S.eindejaar = null; S.uitrolData = undefined; S.uitrolVer = null; }
 function startData() {
   stopData();
   S.unsub.push(onSnapshot(ZONES(), snap => {
@@ -557,6 +558,7 @@ function startData() {
   S.unsub.push(onSnapshot(TARGETS(), d => { S.targets = d.exists() ? d.data() : null; rerender(); }, () => {}));
   S.unsub.push(onSnapshot(EINDEJAAR(), d => { S.eindejaar = d.exists() ? d.data() : null; rerender(); }, () => {}));
   S.unsub.push(onSnapshot(HPLIJST(), d => { S.hp = d.exists() ? d.data() : null; rerender(); }, () => {}));
+  S.unsub.push(onSnapshot(UITROL(), d => { S.uitrolData = d.exists() ? d.data() : null; if (view() === 'uitrol') rerender(); }, () => { S.uitrolData = null; }));
   if (S.rol === 'beheer') S.unsub.push(onSnapshot(collection(db, 'toegang'), snap => {
     S.team = []; snap.forEach(d => S.team.push({ email: d.id, ...d.data() }));
     S.team.sort((a, b) => (a.naam || a.email).localeCompare(b.naam || b.email)); if (view() === 'team') rerender();
@@ -823,77 +825,49 @@ const MN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt'
 const MNL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 const maandNaam = (m, lang) => (lang ? MNL : MN)[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4);
 const volgende = m => { let [y, mm] = m.split('-').map(Number); mm++; if (mm > 12) { mm = 1; y++; } return `${y}-${String(mm).padStart(2, '0')}`; };
+// De volledige Nov·Dec-uitrol (exacte kopie van het artifact) draait in een iframe,
+// met de data uit de database (Firestore: wyre/v1/uitrol/novdec) in het sjabloon geïnjecteerd.
 function uitrolView() {
-  if (!S.loaded) { app.innerHTML = '<p class="muted">Gegevens laden…</p>'; return; }
-  const ontbreekt = [!S.targets && 'de HP-targets per maand', !S.hp && 'de HP per POC (Delivery planning)'].filter(Boolean);
-  if (ontbreekt.length) {
-    app.innerHTML = `<h1>Uitrol</h1><div class="msg">Voor de uitrol ontbreekt nog ${ontbreekt.join(' en ')}. ${S.rol === 'beheer' ? 'Laad die in via <a href="#import">Import</a>.' : 'Een beheerder moet die eerst inladen.'}</div>`;
+  const beheer = S.rol === 'beheer';
+  if (S.uitrolData === undefined) { app.innerHTML = '<p class="muted">Uitrol laden…</p>'; return; }
+  if (!S.uitrolData) {
+    app.innerHTML = `<div class="fade"><h1>Uitrol</h1>
+      <div class="msg">De Nov·Dec-uitrol staat nog niet in de database.${beheer ? '' : ' Een beheerder moet die eenmalig laden.'}</div>
+      ${beheer ? `<div class="card dp"><p>Laad de volledige Nov·Dec-uitrol in de database — dezelfde data en interface als het artifact. Dit hoeft maar één keer; daarna zien alle teamleden dezelfde uitrol.</p>
+        <button class="pri" id="seed">Nov·Dec-uitrol in database laden</button><div id="sm"></div></div>` : ''}</div>`;
+    if (beheer) {
+      const say = (t, k = '') => $('#sm').innerHTML = `<div class="msg ${k}">${esc(t)}</div>`;
+      $('#seed').onclick = async () => {
+        $('#seed').disabled = true; say('Laden…');
+        try {
+          const j = await fetch('novdec-seed.json?v=' + Date.now()).then(r => { if (!r.ok) throw new Error('Kon novdec-seed.json niet ophalen'); return r.json(); });
+          await setDoc(UITROL(), {
+            data: JSON.stringify(j.data), act: JSON.stringify(j.act),
+            stat: JSON.stringify(j.stat), topo: JSON.stringify(j.topo),
+            op: serverTimestamp(), door: S.naam, bron: 'Nov · Dec Uitrol'
+          });
+          // De onSnapshot toont de uitrol daarna automatisch.
+        } catch (err) { $('#seed').disabled = false; say('Laden mislukt: ' + esc(fout(err)), 'bad'); }
+      };
+    }
     return;
   }
-  const nu = new Date().toISOString().slice(0, 7);
-  if (!S.maand) S.maand = nu;
-  const M = S.maand, M2 = volgende(M);
-  const opties = []; { let m = `${nu.slice(0, 4)}-01`; for (let i = 0; i < 15; i++) { opties.push(m); m = volgende(m); } }
-  const tg = Object.fromEntries((S.targets.pops || []).map(t => [t.id, t]));
-  const ids = [...new Set([...Object.keys(tg), ...Object.keys(S.hp.zones || {})])];
-  const rows = ids.map(id => {
-    const t = tg[id], z = S.zones[id];
-    const u = WYRE.uitrol(z, t, S.hp.zones?.[id], M), u2 = WYRE.uitrol(z, t, S.hp.zones?.[id], M2);
-    return { id, label: t?.label || z?.label || id, opm: t?.opm || '', t, u, u2, lijst: !!S.hp.zones?.[id] };
-  });
-  const metTarget = rows.filter(r => r.u.tMaand).sort((a, b) => b.u.nodig - a.u.nodig);
-  const achter = rows.filter(r => !r.u.tMaand && r.u.nodig > 0).sort((a, b) => b.u.nodig - a.u.nodig);
-  const sum = (rs, f) => rs.reduce((a, r) => a + f(r), 0);
-  const tM = sum(rows, r => r.u.tMaand), gM = sum(rows, r => r.u.hpMaand);
-  const cum = sum(rows, r => r.u.cum), gJ = sum(rows, r => Math.min(r.u.hpJaar, r.u.cum));
-  const card = r => {
-    const u = r.u, pct = u.cum ? Math.min(100, Math.round(u.hpJaar / u.cum * 100)) : 100;
-    const kleur = u.nodig ? (pct < 50 ? 'var(--bad)' : 'var(--prim)') : 'var(--feed)';
-    const open = u.open.filter(o => !o.m), mdu = u.open.filter(o => o.m);
-    return `<div class="card"><h3><a href="#zone/${esc(r.id)}">${esc(r.label)}</a><span class="pct" style="color:${kleur}">${pct}%</span></h3>
-     <div class="bar big" title="${u.hpJaar} van ${u.cum} HP"><span style="width:${pct}%;background:${kleur}"></span></div>
-     <div class="kv">
-      <span>Target ${maandNaam(M)}</span><b>${nf.format(u.tMaand)} HP</b>
-      <span>Gelast in ${maandNaam(M)}</span><b>${nf.format(u.hpMaand)} HP</b>
-      <span>Target ${M.slice(0, 4)} t/m ${MN[+M.slice(5) - 1]}</span><b>${nf.format(u.cum)} HP</b>
-      <span>Gelast in ${M.slice(0, 4)}</span><b>${nf.format(u.hpJaar)} HP</b>
-      <span>Nog nodig voor target</span><b class="${u.nodig ? 'late' : 'ok'}">${u.nodig ? nf.format(u.nodig) + ' HP' : 'gehaald'}</b>
-      ${r.u2.tMaand ? `<span>Target ${maandNaam(M2)}</span><b>${nf.format(r.u2.tMaand)} HP</b>` : ''}
-      <span>Nog open in de zone</span><b>${nf.format(u.hpOpen)} HP · ${u.open.length} POC's</b>
-     </div>
-     ${r.opm ? `<p class="small muted" style="margin:6px 0">${esc(r.opm)}</p>` : ''}
-     ${takenHtml(r.id)}
-     ${!r.lijst ? '<div class="msg warn small">Deze zone staat niet in de HP-lijst; gelast en open HP zijn onbekend.</div>' : ''}
-     ${open.length ? `<details><summary>Open POC's (${open.length})</summary>${open.map(o => `<span class="chip"><b>${esc(o.p)}</b> ${o.hp} HP</span>`).join('')}</details>` : ''}
-     ${mdu.length ? `<details><summary>MDU-POC's zonder las (${mdu.length})</summary><p class="small muted">MDU-POC's worden niet gelast en komen dus niet als las in de Actuals.</p>${mdu.map(o => `<span class="chip"><b>${esc(o.p)}</b> ${o.hp} HP</span>`).join('')}</details>` : ''}
-     ${u.onbekend.length ? `<details><summary>Gelast maar niet in de HP-lijst (${u.onbekend.length})</summary>${u.onbekend.map(p => `<span class="chip">${esc(p)}</span>`).join('')}</details>` : ''}
-    </div>`;
-  };
-  app.innerHTML = `<div class="fade">
-   <div class="row"><h1>Uitrol ${maandNaam(M, 1)}</h1><span class="sp"></span>
-    <select id="mnd" aria-label="Maand">${opties.map(m => `<option value="${m}" ${m === M ? 'selected' : ''}>${maandNaam(m, 1)}</option>`).join('')}</select></div>
-   <p class="muted small">Target uit ${esc(S.targets.bestand || 'de HP-planning')}. Gelast = POC's met een las in de Actuals, geteld met het aantal HP uit ${esc(S.hp.bestand || 'de HP-lijst')}.</p>
-   <div class="kpis">
-    <div class="kpi"><div class="v">${nf.format(tM)}</div><div class="l">HP target ${maandNaam(M)} (${metTarget.length} zones)</div></div>
-    <div class="kpi"><div class="v">${nf.format(gM)}</div><div class="l">HP gelast in ${maandNaam(M)}</div></div>
-    <div class="kpi"><div class="v">${cum ? Math.round(gJ / cum * 100) : 0}%</div><div class="l">van target ${M.slice(0, 4)} t/m ${MN[+M.slice(5) - 1]} (${nf.format(gJ)} van ${nf.format(cum)} HP)</div></div>
-    <div class="kpi"><div class="v">${nf.format(sum(rows, r => r.u.nodig))}</div><div class="l">HP nog nodig om alle targets t/m ${MN[+M.slice(5) - 1]} te halen</div></div>
-   </div>
-   <h2>Zones met een target in ${maandNaam(M, 1)}</h2>
-   ${metTarget.length ? `<div class="uc dp">${metTarget.map(card).join('')}</div>` : `<p class="muted">Geen zones met een target in ${maandNaam(M, 1)}.</p>`}
-   ${achter.length ? `<h2 class="dp">Nog achter op een eerder target van ${M.slice(0, 4)}</h2><div class="uc dp">${achter.map(card).join('')}</div>` : ''}
-   <div class="card dp"><h2>Alle zones: ${maandNaam(M)} en ${maandNaam(M2)}</h2>
-    <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th class="n">Target ${MN[+M.slice(5) - 1]}</th><th class="n">Target ${MN[+M2.slice(5) - 1]}</th><th class="n">Target t/m ${MN[+M2.slice(5) - 1]}</th><th class="n">Gelast ${M.slice(0, 4)}</th><th class="n">Nog nodig t/m ${MN[+M2.slice(5) - 1]}</th><th class="n">Open HP</th></tr></thead><tbody>
-    ${rows.filter(r => r.u.tMaand || r.u2.tMaand || r.u2.nodig).sort((a, b) => b.u2.nodig - a.u2.nodig).map(r => `<tr class="click" data-z="${esc(r.id)}"><td>${esc(r.label)}</td><td class="n">${r.u.tMaand ? nf.format(r.u.tMaand) : ''}</td><td class="n">${r.u2.tMaand ? nf.format(r.u2.tMaand) : ''}</td><td class="n">${nf.format(r.u2.cum)}</td><td class="n">${nf.format(r.u2.hpJaar)}</td><td class="n ${r.u2.nodig ? 'late' : 'ok'}">${r.u2.nodig ? nf.format(r.u2.nodig) : '✓'}</td><td class="n">${r.lijst ? nf.format(r.u.hpOpen) : '?'}</td></tr>`).join('')}
-    </tbody></table></div></div>
-   ${S.eindejaar ? `<div class="card dp"><h2>Taken per zone uit WYRE eindejaar 2026</h2><p class="muted small">Vaste momentopname van ${esc(S.eindejaar.stand)}, overgenomen uit je oude artifact. Wordt niet automatisch bijgewerkt.</p>
-    <div class="scroll"><table class="stack"><thead><tr><th>POP-zone</th><th>Doel</th>${TK.map(([, l]) => `<th class="n">${l} open</th>`).join('')}<th class="n">Planbaar</th><th class="n">Wacht</th><th class="n">Meters</th><th class="n">% klaar</th></tr></thead><tbody>
-    ${[...S.eindejaar.pops].sort((a, b) => a.doel.localeCompare(b.doel) || a.naam.localeCompare(b.naam)).map(e => { const t = f => TK.reduce((a, [k]) => a + (e.k[k]?.[f] || 0), 0); const n = t('n'), kl = t('klaar');
-      return `<tr ${e.id ? `class="click" data-z="${esc(e.id)}"` : ''}><td>${esc(e.naam)}</td><td class="${e.doel < new Date().toISOString().slice(0, 7) && n > kl ? 'late' : ''}">${maandNaam(e.doel)}</td>${TK.map(([k]) => `<td class="n">${(e.k[k].n - e.k[k].klaar) || '–'}</td>`).join('')}<td class="n">${t('planbaar') || '–'}</td><td class="n">${t('wacht') || '–'}</td><td class="n">${e.k.blaas.m ? nf.format(e.k.blaas.m) : '–'}</td><td class="n">${n ? Math.round(kl / n * 100) : 100}%</td></tr>`; }).join('')}
-    </tbody></table></div></div>` : ''}
-  </div>`;
-  $('#mnd').onchange = e => { S.maand = e.target.value; uitrolView(); };
-  app.querySelectorAll('tr[data-z]').forEach(tr => tr.onclick = () => location.hash = 'zone/' + tr.dataset.z);
+  // Data aanwezig → bouw de iframe één keer per versie (anders herlaadt de tool bij elke update).
+  const d = S.uitrolData;
+  const ver = (d.op && d.op.seconds) ? String(d.op.seconds) : '1';
+  if (S.uitrolVer === ver && document.getElementById('uitrolFrame')) return;
+  S.uitrolVer = ver;
+  app.innerHTML = '<p class="muted">Uitroltool laden…</p>';
+  fetch('uitrol-template.html?v=' + encodeURIComponent(ver)).then(r => { if (!r.ok) throw new Error('sjabloon niet gevonden'); return r.text(); }).then(tpl => {
+    if (view() !== 'uitrol') return;
+    const html = tpl
+      .replace('/*__DATA__*/', () => d.data)
+      .replace('/*__ACT__*/', () => d.act)
+      .replace('/*__STAT__*/', () => d.stat)
+      .replace('/*__TOPO__*/', () => d.topo);
+    app.innerHTML = '<iframe id="uitrolFrame" title="Nov · Dec Uitrol" style="width:100%;height:calc(100vh - 150px);min-height:600px;border:1px solid var(--line);border-radius:12px;background:var(--card)"></iframe>';
+    document.getElementById('uitrolFrame').srcdoc = html;
+  }).catch(err => { app.innerHTML = `<div class="msg bad">Kon de uitroltool niet laden: ${esc(fout(err))}</div>`; });
 }
 
 /* ---------- Team ---------- */

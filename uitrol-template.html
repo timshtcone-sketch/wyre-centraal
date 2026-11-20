@@ -1,0 +1,1177 @@
+<title>Nov · Dec Uitrol</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* Layout: topbalk met tabs + filters; brede inhoud met kaarten. Accent per maand: Nov=amber, Dec=blauw. */
+:root{
+  --bg:#eef1f5; --surface:#ffffff; --surface-2:#f1f4f8; --surface-3:#e7ecf2; --border:#d6dde6;
+  --fg:#17202e; --muted:#5a6678; --faint:#8794a6;
+  --accent:#0d9488; --accent-weak:#d4efeb;
+  --nov:#d97706; --nov-w:#fef3c7; --dec:#2563eb; --dec-w:#dbeafe;
+  --done:#16a34a; --done-w:#dcfce7; --plan:#0891b2; --plan-w:#cffafe;
+  --wait:#64748b; --wait-w:#e9eef3; --block:#dc2626; --block-w:#fee2e2;
+  --graaf:#b45309; --facade:#7c3aed; --verg:#0d9488; --las:#db2777; --blaas:#2563eb;
+  --shadow:0 1px 2px rgba(16,24,40,.05),0 1px 3px rgba(16,24,40,.07);
+  --font:"Inter",system-ui,-apple-system,sans-serif; --display:"Space Grotesk","Inter",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0d1218; --surface:#151d27; --surface-2:#1b2530; --surface-3:#243041; --border:#2b3744;
+  --fg:#e7ecf2; --muted:#9aa7b8; --faint:#67748a;
+  --accent:#2dd4bf; --accent-weak:#113a36;
+  --nov:#fbbf24; --nov-w:#2d2410; --dec:#60a5fa; --dec-w:#11234a;
+  --done:#4ade80; --done-w:#10291a; --plan:#22d3ee; --plan-w:#0b2e36;
+  --wait:#94a3b8; --wait-w:#1d2733; --block:#f87171; --block-w:#341515;
+  --graaf:#f59e0b; --facade:#a78bfa; --verg:#2dd4bf; --las:#f472b6; --blaas:#60a5fa;
+  --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0d1218; --surface:#151d27; --surface-2:#1b2530; --surface-3:#243041; --border:#2b3744;
+  --fg:#e7ecf2; --muted:#9aa7b8; --faint:#67748a; --accent:#2dd4bf; --accent-weak:#113a36;
+  --nov:#fbbf24; --nov-w:#2d2410; --dec:#60a5fa; --dec-w:#11234a;
+  --done:#4ade80; --done-w:#10291a; --plan:#22d3ee; --plan-w:#0b2e36;
+  --wait:#94a3b8; --wait-w:#1d2733; --block:#f87171; --block-w:#341515;
+  --graaf:#f59e0b; --facade:#a78bfa; --verg:#2dd4bf; --las:#f472b6; --blaas:#60a5fa;
+  --shadow:0 1px 2px rgba(0,0,0,.3); color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);margin:0;font-size:14px;line-height:1.45;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--display);margin:0;font-weight:600;text-wrap:balance}
+button{font-family:inherit;cursor:pointer}
+a{color:var(--accent)}
+.tnum{font-variant-numeric:tabular-nums}
+.sp{flex:1}
+.mini{font-size:11px;color:var(--faint)}
+
+header.top{position:sticky;top:0;z-index:20;background:var(--surface);border-bottom:1px solid var(--border);
+  padding-top:env(safe-area-inset-top,0px)}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:21;background:var(--surface)}
+.top .bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:11px max(16px,env(safe-area-inset-right,0px)) 11px max(16px,env(safe-area-inset-left,0px))}
+.logo{display:flex;flex-direction:column;line-height:1.1}
+.logo .k{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.logo h1{font-size:16px}
+.tabs{display:flex;gap:3px;flex-wrap:wrap}
+.tabs button{background:none;border:none;color:var(--muted);padding:8px 13px;border-radius:8px;font-size:13px;font-weight:600}
+.tabs button:hover{background:var(--surface-2);color:var(--fg)}
+.tabs button.on{background:var(--accent-weak);color:var(--accent)}
+.toolbtns{display:flex;gap:6px;flex-wrap:wrap}
+.btn{background:var(--surface-2);border:1px solid var(--border);color:var(--fg);border-radius:8px;padding:7px 11px;font-size:12px;font-weight:600;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--accent)}
+.btn.sm{padding:5px 9px;font-size:11px}
+.btn.accent{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn.ghost{background:none}
+label.fl{cursor:pointer}
+
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+  padding:9px max(16px,env(safe-area-inset-left,0px));border-top:1px solid var(--border);background:var(--surface-2)}
+.filters .flab{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface)}
+.seg button{background:none;border:none;border-right:1px solid var(--border);color:var(--muted);padding:6px 11px;font-size:12px;font-weight:600}
+.seg button:last-child{border-right:none}
+.seg button.on{color:#fff}
+.seg.m button.on{background:var(--accent)}
+.seg.nd button[data-v="nov"].on{background:var(--nov)}
+.seg.nd button[data-v="dec"].on{background:var(--dec)}
+.seg.nd button[data-v="both"].on{background:var(--accent)}
+select,input,textarea{font-family:inherit;font-size:13px;background:var(--surface);border:1px solid var(--border);color:var(--fg);border-radius:7px;padding:6px 9px}
+input:focus,select:focus,textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+.chipfilter{display:inline-flex;gap:5px;flex-wrap:wrap}
+.chipf{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:20px;padding:4px 11px;font-size:11.5px;font-weight:600}
+.chipf.on{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+
+.wrap{padding:16px max(14px,env(safe-area-inset-right,0px)) 48px max(14px,env(safe-area-inset-left,0px));max-width:none;margin:0}
+
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:13px 15px;box-shadow:var(--shadow)}
+.kpi .lab{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;font-weight:600;display:flex;align-items:center;gap:7px}
+.kpi .dot{width:9px;height:9px;border-radius:50%}
+.kpi .val{font-family:var(--display);font-size:25px;font-weight:700;margin-top:5px}
+.kpi .pct{font-size:11px;color:var(--faint);margin-top:2px}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);margin-bottom:14px}
+.card>.hd{padding:12px 15px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.card>.hd h3{font-size:14px}
+.card>.bd{padding:14px 15px}
+.card>.bd.flush{padding:0}
+
+.prog{height:20px;border-radius:6px;background:var(--surface-3);overflow:hidden;display:flex}
+.prog span{display:block;height:100%}
+.prog .pdone{background:var(--done)} .prog .pbezig{background:var(--plan)} .prog .popen{background:var(--wait)}
+.mb-made{display:flex;gap:10px;align-items:center}
+.mb-made .bar{flex:1;min-width:90px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:10px}
+.legend .it{display:flex;align-items:center;gap:6px}
+.legend .sw{width:11px;height:11px;border-radius:3px}
+
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--border);white-space:nowrap}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:600;background:var(--surface)}
+th.num,td.num{text-align:right}
+tbody tr:hover{background:var(--surface-2)}
+td.name{white-space:normal;font-weight:600;min-width:150px}
+/* Excel-achtige tabel */
+.xtbl{font-size:12px;table-layout:fixed;width:max-content;min-width:100%}
+.xtbl col{min-width:46px}
+.xtbl thead th{position:relative;overflow:hidden}
+.xtbl thead th.sorth{position:sticky;top:0;z-index:3;cursor:pointer;user-select:none;white-space:nowrap;background:var(--surface-3)}
+.xtbl thead th .thl{display:inline-block;overflow:hidden;text-overflow:ellipsis;max-width:calc(100% - 8px);vertical-align:bottom}
+.xtbl thead th.sorth:hover{color:var(--fg)}
+.xtbl .sarr{color:var(--accent);font-size:10px}
+.xtbl .rsz{position:absolute;top:0;right:0;width:8px;height:100%;cursor:col-resize;touch-action:none;z-index:4}
+.xtbl .rsz:hover{background:var(--accent);opacity:.5}
+.xtbl .frow th{position:sticky;top:30px;z-index:2;background:var(--surface-2);padding:4px 6px;border-bottom:2px solid var(--border);overflow:visible}
+.xtbl .frow input{width:100%;min-width:40px;font-size:11px;padding:4px 5px}
+.xtbl .ffbtn{width:100%;display:flex;justify-content:space-between;align-items:center;gap:4px;background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:4px 7px;font-size:11px;font-weight:600;color:var(--muted);cursor:pointer;overflow:hidden}
+.xtbl .ffbtn.act{border-color:var(--accent);color:var(--accent)}
+.xtbl .ffbtn .ffc{color:var(--faint);flex:0 0 auto}
+.ffpop{position:fixed;z-index:90;background:var(--surface);border:1px solid var(--border);border-radius:10px;box-shadow:0 12px 34px rgba(0,0,0,.35);min-width:150px;max-width:280px}
+.ffpop .hd{display:flex;gap:6px;padding:7px;border-bottom:1px solid var(--border)}
+.ffpop .hd button{flex:1;font-size:11px;font-weight:600;padding:4px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--fg)}
+.ffpop .ffl{max-height:260px;overflow:auto;padding:5px}
+.ffpop label{display:flex;align-items:center;gap:8px;padding:5px 8px;font-size:12px;border-radius:6px;cursor:pointer}
+.ffpop label:hover{background:var(--surface-2)}
+.ffpop label input{width:15px;height:15px;accent-color:var(--accent);flex:0 0 15px}
+.ffpop label span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xtbl tbody td{padding:5px 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xtbl tbody tr:nth-child(even){background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
+.xtbl tbody tr:hover{background:var(--accent-weak)}
+.xtbl td.segc{white-space:normal;min-width:190px;max-width:320px;color:var(--muted)}
+.xtbl select[data-e=type]{font-size:11px;padding:3px 5px}
+.xtbl input[type=checkbox]{width:16px;height:16px;accent-color:var(--done)}
+.xtbl input[type=date]{font-size:11px;padding:3px 5px}
+.xtbl td.ctr{text-align:center}
+.xtbl .stv{cursor:pointer;font-weight:700;display:inline-block;min-width:16px;text-align:center}
+.xtbl .stv.d{color:var(--done)} .xtbl .stv.n{color:var(--faint)} .xtbl .stv.o{color:var(--nov)} .xtbl .stv.e{color:var(--faint)}
+.xtbl a.tk{font-weight:600}
+.op{color:var(--done);font-weight:800;letter-spacing:.01em}
+.dinp{width:104px;font-size:11px;padding:4px 6px}
+.xtbl .dinp{width:92px}
+.xtbl .seginp{width:100%;font-size:11.5px;padding:4px 6px}
+.xtbl td.ctr .mini{font-size:10px}
+
+.badge{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap}
+.badge .bd2{width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-done{background:var(--done-w);color:var(--done)} .b-plan{background:var(--plan-w);color:var(--plan)}
+.b-wait{background:var(--wait-w);color:var(--wait)} .b-block{background:var(--block-w);color:var(--block)}
+.b-nov{background:var(--nov-w);color:var(--nov)} .b-dec{background:var(--dec-w);color:var(--dec)}
+.ttag{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:5px;text-transform:uppercase;letter-spacing:.03em}
+.t-graaf{background:var(--graaf);color:#fff} .t-facade{background:var(--facade);color:#fff}
+.t-verg{background:var(--verg);color:#fff} .t-overig{background:var(--wait);color:#fff}
+
+/* POP cards */
+.popcard{background:var(--surface);border:1px solid var(--border);border-radius:12px;box-shadow:var(--shadow);margin-bottom:14px;overflow:hidden}
+.popcard>summary{list-style:none;padding:13px 15px;display:flex;align-items:center;gap:11px;cursor:pointer;flex-wrap:wrap}
+.popcard>summary::-webkit-details-marker{display:none}
+.popcard .chev{color:var(--faint);transition:transform .15s}
+.popcard[open] .chev{transform:rotate(90deg)}
+.popcard .pname{font-weight:700;font-size:14px;font-family:var(--display)}
+.popcard .pbody{padding:0 15px 15px;border-top:1px solid var(--border)}
+.lanes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:12px}
+@media(max-width:760px){.lanes{grid-template-columns:1fr}}
+
+/* task line */
+.lijn{border:1px solid var(--border);border-radius:9px;padding:10px 12px;margin:8px 0;background:var(--surface-2)}
+.lijn .l1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.lijn .code{font-weight:700;font-variant-numeric:tabular-nums}
+.lijn .desc{font-size:12px;color:var(--muted);margin:5px 0 0;line-height:1.35}
+.stages{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
+.stage{display:flex;align-items:center;gap:6px;font-size:11px;font-weight:600;padding:4px 9px;border-radius:7px;border:1px solid var(--border);background:var(--surface)}
+.stage .sdot{width:8px;height:8px;border-radius:50%}
+.s-done .sdot{background:var(--done)} .s-planbaar .sdot{background:var(--plan)}
+.s-gepland .sdot{background:var(--wait)} .s-geblokkeerd .sdot{background:var(--block)} .s-bezig .sdot{background:var(--nov)}
+.stage.s-done{border-color:var(--done)} .stage.s-planbaar{border-color:var(--plan)} .stage.s-geblokkeerd{border-color:var(--block)}
+.lctrl{display:flex;gap:12px;flex-wrap:wrap;margin-top:9px;align-items:center}
+.chk{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--fg);cursor:pointer;user-select:none}
+.chk input{width:15px;height:15px;accent-color:var(--accent)}
+.lctrl select,.lctrl input[type=date]{font-size:12px;padding:4px 7px}
+.toggle{display:inline-flex;align-items:center;gap:7px;font-size:12px}
+.sw-t{position:relative;width:36px;height:20px;border-radius:12px;background:var(--wait);transition:.15s;flex:0 0 36px}
+.sw-t.on{background:var(--done)}
+.sw-t::after{content:"";position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:.15s}
+.sw-t.on::after{left:18px}
+
+/* status checklist */
+.checklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:7px;margin-top:10px}
+.cli{display:flex;align-items:center;gap:9px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:12.5px}
+.cli .ci{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--border);display:flex;align-items:center;justify-content:center;flex:0 0 18px;font-size:12px}
+.cli.done .ci{background:var(--done);border-color:var(--done);color:#fff}
+.cli.done{border-color:var(--done)}
+.cli.nvt{opacity:.6} .cli.nvt .ci{color:var(--faint)}
+.cli .clab{flex:1}
+.cli .cdate{font-size:10.5px;color:var(--faint)}
+
+.draw-slot{border:1.5px dashed var(--border);border-radius:10px;padding:14px;text-align:center;color:var(--muted);background:var(--surface-2);margin-top:12px}
+.notice{border-radius:9px;padding:10px 13px;font-size:12.5px;margin-bottom:14px;display:flex;gap:9px;align-items:flex-start}
+.notice.i{background:var(--accent-weak);color:var(--accent)}
+.notice.w{background:var(--nov-w);color:var(--nov)}
+
+.chartbox{overflow-x:auto}
+svg{display:block;max-width:100%}
+.gridln{stroke:var(--border);stroke-dasharray:2 3;opacity:.6}
+.axlab{fill:var(--muted);font-size:11px}
+.barlab{fill:var(--fg);font-size:10px;font-variant-numeric:tabular-nums}
+
+/* reminder popup */
+.modal-bg{position:fixed;inset:0;background:rgba(8,12,18,.55);z-index:60;display:flex;align-items:center;justify-content:center;padding:18px}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:14px;max-width:560px;width:100%;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.modal .mh{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.modal .mh h3{flex:1;font-size:15px}
+.modal .mb{padding:16px 18px;overflow:auto}
+.modal textarea{width:100%;height:200px;font-family:ui-monospace,monospace;font-size:11px}
+.modal.full{max-width:min(1500px,96vw);width:96vw;height:92vh;max-height:92vh}
+.modal.full .mb{padding:14px 16px}
+.dsec{margin-bottom:11px}
+.dsec-t{font-size:10.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--faint);font-weight:700;margin-bottom:5px}
+.dline{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.statusline{display:flex;gap:6px;flex-wrap:wrap}
+.statusline .sli{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11.5px;font-weight:600;background:var(--surface-2)}
+.statusline .sli .stv{font-size:12px}
+.ptbl{border-collapse:collapse;font-size:12px;width:100%;max-width:760px}
+.ptbl th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:600;padding:4px 8px;border-bottom:1px solid var(--border);background:var(--surface-2)}
+.ptbl td{padding:4px 8px;border-bottom:1px solid var(--border);vertical-align:top}
+.ptbl tbody tr:hover{background:var(--surface-2)}
+.remind-item{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.remind-item input[type=date]{font-size:12px}
+
+#toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:70;padding:10px 16px;border-radius:9px;font-size:13px;font-weight:600;color:#fff;box-shadow:0 8px 28px rgba(0,0,0,.3);max-width:90vw;text-align:center}
+</style>
+
+<header class="top">
+  <div class="bar">
+    <div class="logo"><span class="k">WYRE · Circet</span><h1>November · December Uitrol</h1></div>
+    <nav class="tabs" id="tabs"></nav>
+    <span class="sp"></span>
+    <div class="toolbtns">
+      <label class="btn sm fl" title="Planning-Excel (HP delivered) herupload">⬆ Planning<input type="file" id="inPlan" accept=".xlsx,.xlsm" hidden></label>
+      <label class="btn sm fl" title="Actuals importeren (voortgang)">✓ Actuals<input type="file" id="inAct" accept=".xlsx,.xlsm" hidden></label>
+      <label class="btn sm fl" title="POP status wyre.xlsx importeren">▣ POP-status<input type="file" id="inStat" accept=".xlsx,.xlsm" hidden></label>
+      <button class="btn sm" id="btnRemind" title="Reminder-pop-ups aan/uit"></button>
+      <button class="btn sm" id="btnExport">⧉ Export</button>
+      <button class="btn sm ghost" id="btnTheme">◐</button>
+    </div>
+  </div>
+  <div class="filters" id="filters"></div>
+</header>
+<main class="wrap" id="wrap"></main>
+
+<script id="seed" type="application/json">/*__DATA__*/</script>
+<script id="actseed" type="application/json">/*__ACT__*/</script>
+<script id="statseed" type="application/json">/*__STAT__*/</script>
+<script id="toposeed" type="application/json">/*__TOPO__*/</script>
+<script>
+"use strict";
+(function(){
+const SEED=JSON.parse(document.getElementById('seed').textContent);
+const ACT_SEED=JSON.parse(document.getElementById('actseed').textContent);
+const STAT_SEED=JSON.parse(document.getElementById('statseed').textContent);
+const TOPO=JSON.parse(document.getElementById('toposeed').textContent);
+const MONTHS=SEED.months;
+const LS={data:'nd_data_v1',act:'nd_act_v1',stat:'nd_stat_v1',lines:'nd_lines_v1',prefs:'nd_prefs_v1',theme:'nd_theme'};
+const NOV=10,DEC=11;
+const TODAY=new Date(); TODAY.setHours(0,0,0,0);
+
+/* tracker-tekeningen (WYRE voortgang-trackers) per PLAN */
+const TRACKERS={
+"MRO_DIEGEM_01_POP_001":"96n2k9g29bGXZwZ7WJzUCg","MRO_DIEGEM_01_POP_002":"SEAbsqH6CjJTrvdnF8GtaR",
+"MRO_DIEGEM_01_POP_003":"Gh7jU5SEKXXKxhmHMqmwgw","MRO_DIEGEM_01_POP_004":"UiX9ujAKenur3mvjM1JS5g",
+"MRO_DUFFEL_02_POP_001":"8eKHnRjKnTwxh4V7CPpGk5","MRO_DUFFEL_02_POP_002":"VKfXgTzKzhNdwi2YuUXKoe",
+"MRO_DUFFEL_02_POP_007":"TRY9cNwzSJtspxVsFxkYCT","MRO_DUFFEL_02_POP_008":"8Cyu8kumr5QRpdUXsJutta",
+"MRO_DUFFEL_02_POP_011":"PuiV9DzA7ESBAUXeNjUaGa","MRO_DUFFEL_02_POP_014":"6D2U7Cmz4QdG9QxxxtXRBn",
+"MRO_GRIMBERGEN_01_POP_003103":"LH97enyrgXfcth8xZmWKfi","MRO_GRIMBERGEN_01_POP_004104":"GYUKKSNz469rXGjJ17Y7Uv",
+"MRO_GRIMBERGEN_01_POP_005105":"KkaEHzgnHLZmHiycw9oufe","MRO_GRIMBERGEN_01_POP_006":"CDwpVq8cgGStKSJrW7igyK",
+"MRO_HUMBEEK_01_POP_003":"P3VE6ZHz2LeCzJEeSXURXF","MRO_LEUVEN_05_POP_003":"9Qp4963CbztTE8RaLMbKgh",
+"MRO_LEUVEN_05_POP_006":"A9akq71YxUCmKiJEryqBxV","MRO_MEISE_01_POP_003103":"SaLesAJvE1x38FfjYB1NGm",
+"MRO_MEISE_01_POP_004104":"8hJGsQYggfczTv1U4JbL2Y","MRO_MEISE_01_POP_005105":"CnmyUfZaia4jixvzVCJ7FC",
+"MRO_MEISE_01_POP_006106":"TK4X4tXLZQKPQzdYhydV5Y","MRO_MORTSEL_01_POP_003":"BRf8ECCXG1Nz25NH4ZhEmW",
+"MRO_MORTSEL_01_POP_008":"2hmT9EqtHFqz5ip8d6s4LN","MRO_MORTSEL_01_POP_010":"MwZhREjgRLtvXP68gov35w",
+"MRO_MORTSEL_02_POP_002":"4YE3vnBnTJVAqenGu2Fx2L","MRO_STROMBEEKBEVER_01_POP_001":"YZ5YW2bWwRVXHirzvRGjuT",
+"MRO_STROMBEEKBEVER_01_POP_004":"VvNYx81AtWKJarkoDZLqDy","MRO_STROMBEEKBEVER_01_POP_008":"FU65ovjs1EQxcQakUTxd2N",
+"MRO_STROMBEEKBEVER_01_POP_009":"HRYcYj1ijUsi9q4THWngHe","MRO_STROMBEEKBEVER_01_POP_010":"331PnsQPknoDXAfu1g6na7",
+"MRO_WOLVERTEM_01_POP_002":"FodbGJM48ko9nfhVYURpKX"
+};
+const STATUS_ITEMS=[
+ ["sokkel","Sokkel POP-kast geplaatst",["sokkel"]],
+ ["popkast","POP-kast geplaatst",["pop geplaatst","pop-kast geplaatst","popkast geplaatst","pop kast geplaatst"]],
+ ["pdp","PDP geplaatst",["pdp"]],
+ ["lskast","LS kastje geplaatst",["ls kastje","ls-kastje","ls kast"]],
+ ["lsfluvius","LS aangesloten door Fluvius",["fluvius","ls aangesloten"]],
+ ["swstroom","SW ingave stroom",["sw ingave","ingave stroom","sw stroom"]],
+ ["feedblazen","FEED geblazen",["feed geblazen","feed blazen"]],
+ ["feedlas","FEED gelast",["feed gelast","feed lassen"]]
+];
+
+/* ---------- state ---------- */
+let DATA=load(LS.data)||clone(SEED);
+let ACT=load(LS.act)||clone(ACT_SEED);
+let STAT=load(LS.stat)||clone(STAT_SEED);
+let LINES=load(LS.lines)||{};       // lineId -> overrides
+let PREFS=load(LS.prefs)||{remind:true,dismissed:{}};
+let TAB='dash', dashMonth='both', fZone='', fMonth='both', fWork='';
+
+function clone(o){return JSON.parse(JSON.stringify(o));}
+function load(k){try{const v=localStorage.getItem(k);return v?JSON.parse(v):null;}catch(e){return null;}}
+function save(k,v){try{localStorage.setItem(k,JSON.stringify(v));return true;}catch(e){return false;}}
+function saveAll(){save(LS.data,DATA);save(LS.act,ACT);save(LS.stat,STAT);save(LS.lines,LINES);save(LS.prefs,PREFS);}
+function fmt(n){return Math.round(n||0).toLocaleString('nl-BE');}
+function esc(s){return(s==null?'':String(s)).replace(/[&<>"]/g,function(m){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m];});}
+function trunc(s,n){s=s||'';return s.length>n?s.slice(0,n-1)+'…':s;}
+// datums: intern ISO (YYYY-MM-DD), weergave DD/MM/YYYY
+function fmtDate(iso){if(!iso)return '';const m=String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[3]+'/'+m[2]+'/'+m[1]:String(iso);}
+function parseDMY(s){if(!s)return '';s=String(s).trim();let m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if(m){let y=m[3];if(y.length===2)y='20'+y;return y+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');}
+  m=s.match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?s:'';}
+function todayISO(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');}
+// operationeel: sokkel, POP-kast, PDP, SW ingave stroom, LS Fluvius, FEED (geblazen+gelast) — klaar of n.v.t.
+const OP_ITEMS=['sokkel','popkast','pdp','swstroom','lsfluvius','feedblazen','feedlas'];
+function isOperational(p){const st=STAT[p.pop]||{};return OP_ITEMS.every(function(k){const v=st[k];return v&&(v.done||v.nvt);});}
+function popNameHTML(p,extra){const op=isOperational(p);return '<span class="'+(op?'op':'')+'" title="'+(op?'Kan operationeel zijn':'')+'">'+esc(p.label||p.pop)+(op?' ✓':'')+'</span>'+(extra||'');}
+
+/* ---------- helpers: normalisatie + actuals ---------- */
+function normKab(k){k=(k||'').toString().trim().toUpperCase().replace(/\s*-\s*/g,'-');if(/^\d\d[A-Z]$/.test(k))k='0'+k;return k;}
+function normPoc(p){p=(p||'').toString().trim().toUpperCase();const m=p.match(/(\d{2,3}[A-Z]M?\d{1,2})/);if(!m)return '';let s=m[1];if(/^\d\d[A-Z]M?\d\d$/.test(s))s='0'+s;if(/^\d{3}[A-Z]M?\d$/.test(s))s=s.replace(/(\d)$/,'0$1');return s;}
+function strengOf(code){const m=(code||'').toUpperCase().match(/(\d{3}[A-Z])/);return m?m[1]:'';}
+function popNum(p){const m=(p.label||p.pop||'').match(/(\d{1,4})\s*$/);return m?m[1].padStart(3,'0'):'';}
+function planOf(p){return p.zone+'_POP_'+popNum(p);}
+function trackerUrl(p){
+  const base=p.zone+'_POP_'+popNum(p);
+  if(TRACKERS[base])return 'https://claude.ai/artifact/'+TRACKERS[base];
+  // samengevoegde sleutels (003103 etc.)
+  const pre=p.zone+'_POP_'+popNum(p);
+  for(const k in TRACKERS){if(k.indexOf(pre)===0)return 'https://claude.ai/artifact/'+TRACKERS[k];}
+  return null;
+}
+function popRealized(p){return ACT[p.pop]||null;}
+
+/* ---------- segment parsing + classificatie ---------- */
+const DONE_RE=/\b(klaar|gereed|civiel klaar|civil ready|al gereed|uitgevoerd|afgerond|aanleg klaar)\b/i;
+const BLOCK_RE=/\b(SPER|freeze|on[- ]?hold|tree removal|geblokkeerd|niet toegestaan|niet uitvoerbaar)\b/i;
+const FACADE_RE=/fa[cç]ade|gevel|hangen|aan de gevel|op rol/i;
+const GRAAF_RE=/aanleg|graven|graaf|doorsteek|boring|lijnboring|civiel|trench|tr[ae]chen|wegenis|asfalt|herasfalt|riolering|puntopening|ondergronds|underground|stuk aanleg|te maken/i;
+const VERG_RE=/vergunning|domeinvergunning|\bawv\b|toestemming|redesign\s*(aan|te)|aanvra|pilootschap|intekenen|synergie/i;
+const BLAAS_RE=/blaaskabel|te blazen|blazen|blaastest|blaaswerk/i;
+const LAS_RE=/\blas(sen|werk|plan|je)?\b|doorlas|poc\b|inlassen|aflassen/i;
+function autoType(desc){
+  // Façade = gevelwerk; Graaf = civiel/ondergronds; Vergunning = vergunnings-/synergieblok; anders Overig
+  if(FACADE_RE.test(desc))return 'facade';
+  if(GRAAF_RE.test(desc))return 'graaf';
+  if(VERG_RE.test(desc))return 'verg';
+  return 'overig';
+}
+function parseDateNear(text){ // eerste dd/mm(/jj) → ISO (jaar default 2026)
+  const m=(text||'').match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+  if(!m)return '';
+  let y=m[3]?(m[3].length===2?'20'+m[3]:m[3]):'2026';
+  const mo=m[2].padStart(2,'0'),d=m[1].padStart(2,'0');
+  if(+mo<1||+mo>12||+d<1||+d>31)return '';
+  return y+'-'+mo+'-'+d;
+}
+// bouw lijnen (segmenten) voor Nov/Dec per POP
+function popLines(p){
+  const out=[];
+  (p.comments||[]).forEach(function(c){
+    if(!(c.year===2026&&(c.month===11||c.month===12)))return;
+    let idx=0;
+    (c.text||'').split('\n').forEach(function(ln){
+      const m=ln.match(/^\s*(\d+)\s*HP\b\s*(?:=>|->|=|:)?\s*(.*)$/i);
+      if(!m)return;
+      const id=p.pop+'|'+c.cell+'|'+(idx++);
+      const ov=LINES[id];const desc=(ov&&ov.desc!=null)?ov.desc:m[2].trim();
+      out.push({id:id,pop:p.pop,maand:c.month,cell:c.cell,hp:parseInt(m[1],10),desc:desc,
+        streng:strengOf(desc.replace(/^(\d\d[A-Z])/,'0$1'))||strengOf(desc)});
+    });
+  });
+  return out;
+}
+function segRealized(line,real){
+  if(!real)return false;const ls=real.lasStrengen||{};
+  const codes=(line.desc.toUpperCase().match(/\d{2,3}[A-Z]M?\d{0,2}/g)||[]);
+  for(const c of codes){const st=strengOf(/^\d{3}/.test(c)?c:'0'+c);
+    if(st&&(real.strengen[st]||ls[st]))return true;
+    const pc=normPoc(c);if(pc&&real.pocs[pc])return true;}
+  if(line.streng&&(real.strengen[line.streng]||ls[line.streng]))return true;
+  return false;
+}
+// POC-bereik uit de omschrijving halen (bv. "040C01 - 040C08" -> streng 040C, 1..8)
+// Bereik van gewone (niet-M) POC's op één streng. M-POC's worden genegeerd:
+// die maken we niet en gelden automatisch als gelast zodra de kabel geblazen is.
+function parsePocRange(desc){
+  const toks=(desc.toUpperCase().match(/\d{2,3}[A-Z]M?\d{1,2}/g)||[]).map(normPoc).filter(Boolean);
+  const plain=toks.filter(function(c){return /^\d{3}[A-Z]\d{2}$/.test(c)&&!/99$/.test(c);}); // geen M, geen 99
+  if(!plain.length)return null;
+  const s=strengOf(plain[0]);
+  const idx=plain.filter(function(c){return strengOf(c)===s;}).map(function(c){return parseInt(c.slice(4),10);});
+  if(!idx.length)return null;
+  return {streng:s,a:Math.min.apply(null,idx),b:Math.max.apply(null,idx)};
+}
+function strengHasLas(streng,real){
+  if(!streng)return false;
+  if(real.lasStrengen&&real.lasStrengen[streng])return true;
+  for(const k in real.pocs){if(strengOf(k)===streng)return true;}
+  return false;
+}
+// las-dekking uit actuals: {done, partial, missing[]}
+function lasCoverage(line,real){
+  if(!real)return {done:false,partial:false,missing:[]};
+  const rng=parsePocRange(line.desc);
+  if(rng&&rng.streng){let present=0,total=0;const missing=[];
+    for(let i=rng.a;i<=rng.b;i++){total++;const code=rng.streng+String(i).padStart(2,'0');if(real.pocs[code])present++;else missing.push(code);}
+    if(total>0){if(present>=total)return {done:true,partial:false,missing:[]};
+      if(present>0)return {done:false,partial:true,missing:missing};}}
+  if(strengHasLas(line.streng,real))return {done:false,partial:true,missing:[]};
+  return {done:false,partial:false,missing:[]};
+}
+// effectieve staat van een lijn (default + overrides)
+// 99-dist = civiel-doorvoer: civiel moet in orde, maar niet blazen/lassen.
+// Herkenbaar als de omschrijving alleen een POC op ...99 bevat (geen gewone POC, geen M).
+function isCiviel99(desc){
+  const toks=(String(desc||'').toUpperCase().match(/\d{2,3}[A-Z]M?\d{1,2}/g)||[]).map(normPoc).filter(Boolean);
+  if(!toks.some(function(c){return /99$/.test(c);}))return false;
+  const plain=toks.filter(function(c){return /^\d{3}[A-Z]\d{2}$/.test(c)&&!/99$/.test(c);});
+  const hasM=toks.some(function(c){return /M/i.test(c);});
+  return !plain.length&&!hasM;
+}
+function lineState(p,line){
+  const ov=LINES[line.id]||{};
+  const civiel99=isCiviel99(line.desc);
+  const real=popRealized(p);
+  const type=ov.type||autoType(line.desc);
+  const autoCiviel=type==='facade'||DONE_RE.test(line.desc)||(real&&segRealized(line,real));
+  const civielOk = ov.civielOk!=null? ov.civielOk : !!autoCiviel;
+  const uitvoerbaar = ov.uitvoerbaar!=null? ov.uitvoerbaar : !BLOCK_RE.test(line.desc);
+  const autoBlaas = real&&segRealized(line,real);
+  const blaasDone = ov.blaasDone!=null? ov.blaasDone : !!autoBlaas;
+  const lc = real? lasCoverage(line,real) : {done:false,partial:false,missing:[]};
+  const lasDone = ov.lasDone!=null? ov.lasDone : lc.done;
+  const lasPartial = !lasDone && lc.partial;
+  const lasMissing = lasDone?[]:(lc.missing||[]);
+  const target = ov.target!=null? ov.target : parseDateNear(line.desc);
+  // stadia
+  let placeStage, lasStage;
+  if(!uitvoerbaar) placeStage='geblokkeerd';
+  else if(blaasDone) placeStage='done';
+  else if(type==='facade'||civielOk) placeStage='planbaar';
+  else placeStage='gepland';
+  if(lasDone) lasStage='done';
+  else if(lasPartial) lasStage='bezig';
+  else if(blaasDone) lasStage='planbaar';
+  else lasStage='gepland';
+  if(civiel99){placeStage='nvt';lasStage='nvt';}
+  return {type:type,civiel99:civiel99,civielOk:civielOk,uitvoerbaar:uitvoerbaar,
+    blaasDone:civiel99?false:blaasDone,lasDone:civiel99?false:lasDone,
+    lasPartial:civiel99?false:lasPartial,lasMissing:civiel99?[]:lasMissing,
+    target:target,placeStage:placeStage,lasStage:lasStage,block:BLOCK_RE.test(line.desc)};
+}
+function setLine(id,patch){LINES[id]=Object.assign({},LINES[id],patch);save(LS.lines,LINES);}
+
+/* Nov/Dec POPs */
+function ndPops(){return DATA.pops.filter(function(p){const a=p.monthly['2026']||[];
+  const cm=(p.comments||[]).some(function(c){return c.year===2026&&(c.month===11||c.month===12);});
+  return (a[NOV]||0)>0||(a[DEC]||0)>0||cm;});}
+function novHP(p){return (p.monthly['2026']||[])[NOV]||0;}
+function decHP(p){return (p.monthly['2026']||[])[DEC]||0;}
+function plannedHP(p,month){return month==='nov'?novHP(p):month==='dec'?decHP(p):novHP(p)+decHP(p);}
+// gerealiseerde HP (indicatief) o.b.v. lijnen die geblazen/gereed zijn
+function madeHP(p,month){
+  let s=0;popLines(p).forEach(function(l){
+    if(month==='nov'&&l.maand!==11)return; if(month==='dec'&&l.maand!==12)return;
+    const st=lineState(p,l); if(st.blaasDone)s+=l.hp;});
+  return s;
+}
+// POC-scope van een POP = unie van tekening (TOPO) + actuals + planning-opmerkingen.
+// De actuals zijn leidend voor wat af is; de tekening-extractie is soms onvolledig,
+// dus vullen we de scope aan met POC's uit de actuals en de opmerkingen. 99 = civiel (telt niet mee).
+function pocUniverse(p){
+  const topo=popTopo(p); const real=popRealized(p)||{};
+  const pocs=new Set(), strengen=new Set();
+  function add(raw){const pc=normPoc(raw); if(!pc||/99$/.test(pc))return; pocs.add(pc); const s=strengOf(pc); if(s)strengen.add(s);}
+  if(topo&&topo.pocsByStreng){for(const s in topo.pocsByStreng){(topo.pocsByStreng[s]||[]).forEach(function(c){if(/99$/.test(c))return; add(c);}); if(!/99$/.test(s))strengen.add(s);}}
+  const pa=real.pocs||{}; for(const pc in pa)add(pc);
+  popLines(p).forEach(function(l){
+    const r=parsePocRange(l.desc); if(r){for(let i=r.a;i<=r.b;i++)add(r.streng+String(i).padStart(2,'0'));}
+    (l.desc.toUpperCase().match(/\d{2,3}[A-Z]M?\d{1,2}/g)||[]).forEach(add);
+  });
+  return {pocs:pocs,strengen:strengen};
+}
+// Fysieke voortgang: gelaste POC's / totale scope. M-POC = af zodra streng geblazen.
+function physProgress(p){
+  const topo=popTopo(p); const real=popRealized(p)||{};
+  const pocsAct=real.pocs||{}, strAct=real.strengen||{}, lasStr=real.lasStrengen||{};
+  const uni=pocUniverse(p);
+  if(!uni.pocs.size&&!uni.strengen.size)return null;
+  let tot=0,done=0;
+  uni.pocs.forEach(function(pc){
+    const blown=!!strAct[strengOf(pc)]||!!lasStr[strengOf(pc)];
+    if(/M/i.test(pc)){tot++; if(blown)done++; return;}
+    tot++; if(pocsAct[pc])done++;
+  });
+  let strDone=0; uni.strengen.forEach(function(s){if(strAct[s]||lasStr[s])strDone++;});
+  return {tot:tot,done:done,pct:tot?Math.round(100*done/tot):0,strTot:uni.strengen.size,strDone:strDone,
+    src:(topo&&topo.src==='tekening'?'tekening':'afgeleid')};
+}
+function aggPhys(list){let t=0,d=0,st=0,sd=0;list.forEach(function(p){const x=physProgress(p);if(x){t+=x.tot;d+=x.done;st+=x.strTot;sd+=x.strDone;}});
+  return {tot:t,done:d,pct:t?Math.round(100*d/t):0,strTot:st,strDone:sd};}
+// verwachte DP-knooppunten uit de strengen van de POP (3-cijferig voorvoegsel)
+function expectedDPs(p){const s={};
+  popLines(p).forEach(function(l){if(l.streng)s[l.streng.slice(0,3)]=1;});
+  (p.comments||[]).forEach(function(c){(c.text.match(/\bDP\s*0?(\d{2,3})\b/gi)||[]).forEach(function(){});});
+  return Object.keys(s).sort();
+}
+// DP/PDP-lasstatus (PDP = DP 010 feeder)
+function dpInfo(p){
+  const real=popRealized(p);const dl=(real&&real.dpLas)||{};
+  const dps=expectedDPs(p);
+  const nodes=dps.map(function(d){return {dp:d,done:!!dl[d],date:dl[d]||''};});
+  const doneN=nodes.filter(function(n){return n.done;}).length;
+  return {pdpDone:!!dl['010'],pdpDate:dl['010']||'',nodes:nodes,doneN:doneN,totN:nodes.length,
+    missing:nodes.filter(function(n){return !n.done;}).map(function(n){return n.dp;})};
+}
+// Alle nog te lassen onderdelen van een POP (voor de opmerking)
+function lasTodo(p){
+  const segs=[];popLines(p).forEach(function(l){const st=lineState(p,l);
+    if(st.lasStage!=='done'&&st.blaasDone){segs.push({streng:l.streng||'?',maand:l.maand,missing:st.lasMissing,partial:st.lasPartial});}});
+  return segs;
+}
+/* ===== Primaire distributie (uit gekoppelde tekening + actuals) ===== */
+function popTopo(p){return TOPO[p.pop]||null;}
+function primInfo(p){
+  const topo=popTopo(p); if(!topo)return null;
+  const real=popRealized(p)||{};
+  const primDPs=real.primDPs||{}, dpLas=real.dpLas||{}, pocs=real.pocs||{};
+  const strAct=real.strengen||{}, lasStr=real.lasStrengen||{};
+  const st=STAT[p.pop]||{};
+  const pdpGelast=!!dpLas['010']||!!(st.feedlas&&st.feedlas.done);
+  // Feed geblazen: expliciete actual/POP-status, OF afgeleid — de PDP kan pas gelast
+  // worden nadat de feed geblazen is, dus pdpGelast ⇒ feed geblazen.
+  let feedBlazen=real.feedBlazen||(st.feedblazen&&st.feedblazen.done?'ja':'');
+  if(!feedBlazen&&pdpGelast)feedBlazen=dpLas['010']||'ja';
+  // Regel: een DP kan pas (deels) gelast of z'n strengen geblazen worden nadat de
+  // primaire dist naar die DP geblazen is. Dus de DP is "gevoed" (prim geblazen) als er
+  // één bewijs van bereik is: een prim-actual, een gelaste DP, of een geblazen/gelaste streng/POC.
+  function dpEvidence(d){
+    const strs=topo.strengByDp[d]||[];
+    let blown=!!primDPs[d];
+    for(const s of strs){if(strAct[s]||lasStr[s]){blown=true;break;}}
+    if(!blown){for(const pc in pocs){if(pc.slice(0,3)===d){blown=true;break;}}}
+    if(!blown&&dpLas[d])blown=true; // gelast ⇒ moet geblazen zijn
+    return blown;
+  }
+  function fedDate(d){
+    const cands=[primDPs[d]];
+    (topo.strengByDp[d]||[]).forEach(function(s){if(strAct[s])cands.push(strAct[s]);if(lasStr[s])cands.push(lasStr[s]);});
+    if(dpLas[d])cands.push(dpLas[d]);
+    return cands.filter(Boolean).sort()[0]||'';
+  }
+  const fed={}; topo.dps.forEach(function(d){fed[d]=dpEvidence(d);});
+  const prims=topo.prims.map(function(pr){
+    const miss=pr.dps.filter(function(d){return !fed[d];});
+    return {cable:pr.cable,dps:pr.dps,blazen:pr.dps.length>0&&miss.length===0,missDps:miss,
+            date:pr.dps.map(fedDate).filter(Boolean).sort()[0]||''};
+  });
+  const dps=topo.dps.map(function(d){
+    const gelast=!!dpLas[d];
+    const strengen=(topo.strengByDp[d]||[]);
+    const strengStatus=strengen.map(function(sg){
+      const list=(topo.pocsByStreng[sg]||[]);
+      // alleen echte lassen-POC's: geen M (alleen blazen), geen 99 (civiel)
+      const missing=list.filter(function(pc){return !/99$/.test(pc)&&!/M/i.test(pc)&&!pocs[pc];});
+      return {streng:sg,missing:missing,done:missing.length===0};
+    });
+    const strengOpen=strengStatus.filter(function(s){return !s.done;});
+    return {dp:d,fed:fed[d],gelast:gelast,date:fedDate(d),strengen:strengen,strengOpen:strengOpen};
+  });
+  return {feedBlazen:feedBlazen,pdpGelast:pdpGelast,prims:prims,dps:dps,
+    primOpen:prims.filter(function(x){return !x.blazen;}),
+    dpToMake:dps.filter(function(x){return !x.fed;}),
+    dpPartial:dps.filter(function(x){return x.gelast&&x.strengOpen.length;})};
+}
+function primPanelHTML(p){
+  const pi=primInfo(p);
+  if(!pi)return '<div class="mini">Geen gekoppelde tekening → primaire distributie niet beschikbaar voor deze POP.</div>';
+  const topo=popTopo(p)||{};
+  const bronTek=topo.src==='tekening';
+  let h='<div class="mini" style="margin-bottom:5px">Bron topologie: '+
+    (bronTek?'<span style="color:var(--done);font-weight:600">overzichtstekening (exact)</span>'
+            :'<span style="color:var(--nov);font-weight:600">afgeleid uit planning + actuals</span> — tekening nog niet ingelezen; kan exact gemaakt worden')+'</div>';
+  h+='<div class="dline" style="margin-bottom:6px">'+
+    '<span class="badge '+(pi.feedBlazen?'b-done':'b-wait')+'">Feed → PDP 010: '+(pi.feedBlazen?('geblazen'+(/\d/.test(pi.feedBlazen)?' '+fmtDate(pi.feedBlazen):'')):'nog te blazen')+'</span>'+
+    '<span class="badge '+(pi.pdpGelast?'b-done':'b-wait')+'">PDP 010 gelast: '+(pi.pdpGelast?'ja':'nog')+'</span></div>';
+  const warns=[];
+  if(pi.pdpGelast&&pi.primOpen.length)warns.push('PDP-kabel ontbreekt — nog te blazen: '+pi.primOpen.map(function(x){return x.cable;}).join(', '));
+  if(pi.dpToMake.length)warns.push('DP nog te maken (prim-kabel niet geblazen): '+pi.dpToMake.map(function(x){return 'DP '+x.dp;}).join(', '));
+  if(pi.dpPartial.length)warns.push('DP gelast maar niet volledig: '+pi.dpPartial.map(function(x){return 'DP '+x.dp+' ('+x.strengOpen.map(function(s){return s.streng;}).join(',')+')';}).join(' · '));
+  if(warns.length)h+='<div style="margin:4px 0 6px">'+warns.map(function(w){return '<div class="mini" style="color:var(--block);font-weight:600">⚠ '+esc(w)+'</div>';}).join('')+'</div>';
+  // Prim-kabels als lijnen
+  h+='<table class="ptbl"><thead><tr><th>Primaire dist</th><th>Voedt DP</th><th>Blazen</th></tr></thead><tbody>'+
+    pi.prims.map(function(pr){return '<tr><td class="tnum">'+esc(pr.cable)+'</td><td class="tnum">'+pr.dps.join(', ')+'</td><td>'+
+      (pr.blazen?'<span style="color:var(--done);font-weight:600">✓ geblazen'+(pr.date?' '+fmtDate(pr.date):'')+'</span>':'<span style="color:var(--block);font-weight:600">nog te blazen'+(pr.missDps.length&&pr.missDps.length<pr.dps.length?' (DP '+pr.missDps.join(',')+')':'')+'</span>')+'</td></tr>';}).join('')+
+    '</tbody></table>';
+  // DP's met lasdekking
+  h+='<table class="ptbl" style="margin-top:8px"><thead><tr><th>DP</th><th>Prim</th><th>Gelast</th><th>Nog te lassen (streng → POC)</th></tr></thead><tbody>'+
+    pi.dps.map(function(x){const todo=x.strengOpen.map(function(s){return s.streng+(s.missing.length?' ('+s.missing.slice(0,8).join(', ')+(s.missing.length>8?'…':'')+')':'');}).join('   ');
+      return '<tr><td class="tnum">'+x.dp+'</td>'+
+        '<td>'+(x.fed?'<span style="color:var(--done)">✓</span>':'<span style="color:var(--block)">nog te maken</span>')+'</td>'+
+        '<td>'+(x.gelast?(x.strengOpen.length?'<span style="color:var(--nov);font-weight:600">deels</span>':'<span style="color:var(--done);font-weight:600">✓ volledig</span>'):'<span class="mini">nog</span>')+'</td>'+
+        '<td class="mini">'+(todo?esc(todo):'—')+'</td></tr>';}).join('')+
+    '</tbody></table>';
+  return h;
+}
+
+/* ---------- generieke Excel-tabel ---------- */
+const XT={};
+function xtstate(id,defSort){if(!XT[id])XT[id]={f:{},sort:defSort||{k:'',dir:1},w:{}};if(!XT[id].w)XT[id].w={};return XT[id];}
+function xval(c,r){return c.val?c.val(r):(r[c.k]==null?'':r[c.k]);}
+function colW(c){return c.w||({select:118,text:260,num:86,date:116,none:92}[c.t]||120);}
+function cmpAN(a,b){const na=parseFloat(a),nb=parseFloat(b);if(!isNaN(na)&&!isNaN(nb)&&/^[\d.,\/]+$/.test(a)&&/^[\d.,\/]+$/.test(b))return na-nb;return a.localeCompare(b);}
+function xtApply(cols,rows,S){
+  let frows=rows.filter(function(r){return cols.every(function(c){const f=S.f[c.k];
+    if(f==null||f===''||(Array.isArray(f)&&!f.length))return true;const v=xval(c,r);
+    if(c.t==='text')return String(v).toLowerCase().indexOf(String(f).toLowerCase())>=0;
+    if(Array.isArray(f))return f.indexOf(String(v))>=0;return String(v)===String(f);});});
+  if(S.sort.k){const c=cols.find(function(x){return x.k===S.sort.k;});if(c)frows.sort(function(a,b){let x=xval(c,a),y=xval(c,b);
+    if(c.t==='num'||c.num){return (parseFloat(x||0)-parseFloat(y||0))*S.sort.dir;}return String(x).localeCompare(String(y))*S.sort.dir;});}
+  return frows;
+}
+function xtable(id,cols,rows,opts){
+  opts=opts||{};const S=xtstate(id,opts.sort);
+  const dist={};cols.forEach(function(c){if(c.t==='select'){const s={};rows.forEach(function(r){const v=xval(c,r);if(v!=='')s[v]=1;});dist[c.k]=Object.keys(s).sort(cmpAN);}});
+  S._dist=dist;S._cols=cols;S._rows=rows;S._name=opts.csvName||id;
+  let frows=xtApply(cols,rows,S);
+  const nF=cols.filter(function(c){const f=S.f[c.k];return Array.isArray(f)?f.length:(f!=null&&f!=='');}).length;
+  let h='<div class="filter-row" style="margin-bottom:8px"><span class="mini">'+frows.length+' / '+rows.length+' '+(opts.unit||'rijen')+'</span>'+
+    '<button class="btn sm" data-xtcsv="'+id+'">⬇ CSV</button>'+
+    '<span class="sp" style="flex:1"></span><span class="mini">↔ sleep de kolomrand om breder/smaller te maken</span>'+
+    (nF?' <button class="btn sm ghost" data-xtclr="'+id+'">✕ Wis kolomfilters ('+nF+')</button>':'')+'</div>';
+  h+='<div class="card"><div class="bd flush"><div class="tbl-wrap"><table class="xtbl" data-xtid="'+id+'">';
+  h+='<colgroup>'+cols.map(function(c){return '<col data-k="'+c.k+'" style="width:'+(S.w[c.k]||colW(c))+'px">';}).join('')+'</colgroup>';
+  h+='<thead><tr>';
+  cols.forEach(function(c){const act=S.sort.k===c.k;const sortable=c.sort!==false;
+    h+='<th class="'+(c.t==='num'?'num ':'')+(sortable?'sorth':'')+'"'+(sortable?' data-xtk="'+c.k+'" data-xtnum="'+((c.t==='num'||c.num)?1:0)+'"':'')+'>'+
+      '<span class="thl">'+c.l+(sortable?'<span class="sarr">'+(act?(S.sort.dir>0?' ▲':' ▼'):'')+'</span>':'')+'</span>'+
+      '<span class="rsz" data-rk="'+c.k+'"></span></th>';});
+  h+='</tr><tr class="frow">';
+  cols.forEach(function(c){h+='<th>';
+    if(c.t==='select'){const f=S.f[c.k];const n=Array.isArray(f)?f.length:0;
+      h+='<button class="ffbtn'+(n?' act':'')+'" data-xtmf="'+c.k+'">'+(n?(n===1?esc(trunc(String(f[0]),12)):n+' gekozen'):'Alle')+'<span class="ffc">▾</span></button>';}
+    else if(c.t==='text')h+='<input data-xtf="'+c.k+'" placeholder="zoek…" value="'+esc(S.f[c.k]||'')+'">';
+    h+='</th>';});
+  h+='</tr></thead><tbody>';
+  frows.forEach(function(r){h+='<tr'+(opts.rowId?' data-id="'+esc(opts.rowId(r))+'"':'')+'>'+cols.map(function(c){
+    const cls=c.t==='num'?' class="num tnum"':(c.cls?' class="'+c.cls+'"':'');
+    return '<td'+cls+'>'+(c.cell?c.cell(r):esc(xval(c,r)))+'</td>';}).join('')+'</tr>';});
+  if(!frows.length)h+='<tr><td colspan="'+cols.length+'" class="mini" style="padding:16px">Geen rijen in deze selectie.</td></tr>';
+  h+='</tbody></table></div></div></div>';
+  return h;
+}
+function xtbind(w){
+  w.querySelectorAll('table.xtbl').forEach(function(tbl){const id=tbl.dataset.xtid;const S=xtstate(id);
+    tbl.querySelectorAll('input[data-xtf]').forEach(function(el){el.oninput=function(){S.f[el.dataset.xtf]=el.value;refresh();};});
+    tbl.querySelectorAll('[data-xtk]').forEach(function(th){th.addEventListener('click',function(e){if(e.target.classList.contains('rsz'))return;
+      const k=th.dataset.xtk;if(S.sort.k===k)S.sort.dir*=-1;else{S.sort.k=k;S.sort.dir=(th.dataset.xtnum==='1'?-1:1);}refresh();});});
+    tbl.querySelectorAll('.ffbtn[data-xtmf]').forEach(function(btn){btn.onclick=function(e){e.stopPropagation();openFilterPop(id,btn.dataset.xtmf,btn);};});
+    tbl.querySelectorAll('.rsz').forEach(function(g){g.addEventListener('pointerdown',function(e){startResize(e,tbl,S,g.dataset.rk);});});
+  });
+  w.querySelectorAll('[data-xtclr]').forEach(function(b){b.onclick=function(){XT[b.dataset.xtclr].f={};refresh();};});
+  w.querySelectorAll('[data-xtcsv]').forEach(function(b){b.onclick=function(){openExportModal(b.dataset.xtcsv);};});
+}
+function csvCell(v){v=v==null?'':String(v);if(/[";\n\r]/.test(v))v='"'+v.replace(/"/g,'""')+'"';return v;}
+function buildCSV(id,scope){const S=XT[id];if(!S||!S._cols)return '';
+  const cols=S._cols;const rows=scope==='filtered'?xtApply(cols,S._rows,S):S._rows.slice();
+  const header=cols.map(function(c){return csvCell(c.l);}).join(';');
+  const body=rows.map(function(r){return cols.map(function(c){return csvCell(c.t==='date'?fmtDate(xval(c,r)):xval(c,r));}).join(';');});
+  return [header].concat(body).join('\r\n');
+}
+async function downloadCSV(name,csv){
+  // echte download via de downloads-capability (met bevestiging bij de kijker)
+  try{
+    const dl = (window.claude&&window.claude.use)? await window.claude.use('downloads') : null;
+    if(dl){ await dl.save({filename:name, data:'﻿'+csv}); return 'saved'; }
+  }catch(e){ return (e&&e.code==='declined')?'declined':'err'; }
+  // terugval: gewone blob-download (werkt niet in elke weergave)
+  try{const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download=name;
+    document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(url);a.remove();},800);}catch(e){}
+  return 'fallback';
+}
+function openExportModal(id){const S=XT[id];if(!S)return;
+  const fcount=xtApply(S._cols,S._rows,S).length,acount=S._rows.length;
+  const name=(S._name||id)+'_'+todayISO()+'.csv';
+  openModal('⬇ Exporteer CSV — '+(S._name||id),
+    '<p class="mini" style="margin:0 0 10px">Kies wat je exporteert. <b>Download .csv</b> vraagt een bevestiging en slaat het bestand op; lukt dat in jouw weergave niet, gebruik dan <b>Kopiëren</b> en plak in een leeg bestand dat je bewaart als <code>.csv</code> (scheidingsteken <code>;</code>, UTF-8, opent direct in Excel).</p>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">'+
+      '<button class="btn sm accent" data-sc="filtered">Huidige filter ('+fcount+')</button>'+
+      '<button class="btn sm" data-sc="all">Volledige lijst ('+acount+')</button></div>'+
+    '<textarea id="csvOut" readonly style="height:200px"></textarea>'+
+    '<div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn accent sm" id="csvDl">⬇ Download .csv</button><button class="btn sm" id="csvCp">⧉ Kopieer</button><span class="mini" id="csvMsg" style="align-self:center"></span></div>',
+    function(m){let cur='filtered';
+      function refreshC(){m.querySelector('#csvOut').value=buildCSV(id,cur);
+        m.querySelectorAll('[data-sc]').forEach(function(b){b.classList.toggle('accent',b.dataset.sc===cur);});}
+      m.querySelectorAll('[data-sc]').forEach(function(b){b.onclick=function(){cur=b.dataset.sc;refreshC();};});
+      m.querySelector('#csvDl').onclick=function(){const msg=m.querySelector('#csvMsg');msg.textContent='Bezig…';
+        downloadCSV((S._name||id)+'_'+cur+'_'+todayISO()+'.csv',m.querySelector('#csvOut').value).then(function(res){
+          msg.textContent=res==='saved'?'Opgeslagen.':res==='declined'?'Download geannuleerd.':res==='fallback'?'Download geprobeerd — lukt dit niet, gebruik Kopiëren.':'Download niet mogelijk hier — gebruik Kopiëren.';});};
+      m.querySelector('#csvCp').onclick=function(){const t=m.querySelector('#csvOut');t.select();
+        try{navigator.clipboard.writeText(t.value).then(function(){m.querySelector('#csvMsg').textContent='Gekopieerd.';},function(){document.execCommand('copy');m.querySelector('#csvMsg').textContent='Gekopieerd.';});}
+        catch(e){document.execCommand('copy');m.querySelector('#csvMsg').textContent='Gekopieerd.';}};
+      refreshC();
+    });
+}
+function startResize(e,tbl,S,k){e.preventDefault();e.stopPropagation();
+  const col=tbl.querySelector('colgroup col[data-k="'+k+'"]');if(!col)return;
+  const startX=e.clientX,startW=col.getBoundingClientRect().width;
+  document.body.style.cursor='col-resize';
+  function mv(ev){const nw=Math.max(46,startW+(ev.clientX-startX));col.style.width=nw+'px';S.w[k]=nw;}
+  function up(){document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);document.body.style.cursor='';}
+  document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up);}
+function closeFilterPop(){const p=document.getElementById('ffpop');if(p)p.remove();document.removeEventListener('pointerdown',ffOutside,true);}
+function ffOutside(ev){const p=document.getElementById('ffpop');if(p&&!p.contains(ev.target)&&!(ev.target.classList&&ev.target.classList.contains('ffbtn')))closeFilterPop();}
+function openFilterPop(id,k,btn){
+  closeFilterPop();const S=xtstate(id);const dist=(S._dist&&S._dist[k])||[];
+  const sel=Array.isArray(S.f[k])?S.f[k].slice():[];
+  const pop=document.createElement('div');pop.className='ffpop';pop.id='ffpop';
+  pop.innerHTML='<div class="hd"><button data-a="all">Alles</button><button data-a="none">Geen</button></div>'+
+    '<div class="ffl">'+dist.map(function(v){return '<label><input type="checkbox" value="'+esc(v)+'"'+(sel.indexOf(v)>=0?' checked':'')+'><span>'+esc(v)+'</span></label>';}).join('')+'</div>';
+  document.body.appendChild(pop);
+  const rc=btn.getBoundingClientRect();
+  pop.style.left=Math.max(6,Math.min(rc.left,window.innerWidth-pop.offsetWidth-8))+'px';
+  pop.style.top=Math.min(rc.bottom+4,window.innerHeight-pop.offsetHeight-8)+'px';
+  function apply(){S.f[k]=[].slice.call(pop.querySelectorAll('input:checked')).map(function(i){return i.value;});
+    refresh();const nb=document.querySelector('.ffbtn[data-xtmf="'+k+'"]');if(nb)openFilterPop(id,k,nb);}
+  pop.querySelectorAll('input').forEach(function(i){i.onchange=apply;});
+  pop.querySelector('[data-a=all]').onclick=function(){pop.querySelectorAll('input').forEach(function(i){i.checked=true;});apply();};
+  pop.querySelector('[data-a=none]').onclick=function(){pop.querySelectorAll('input').forEach(function(i){i.checked=false;});apply();};
+  setTimeout(function(){document.addEventListener('pointerdown',ffOutside,true);},0);
+}
+
+/* ---------- tabs ---------- */
+const TABS=[['dash','Dashboards'],['taken','Taken / lijnen'],['zones','POP-zones'],['status','POP-status']];
+function buildTabs(){const el=document.getElementById('tabs');el.innerHTML='';
+  TABS.forEach(function(t){const b=document.createElement('button');b.textContent=t[1];b.className=(TAB===t[0]?'on':'');
+    b.onclick=function(){TAB=t[0];render();};el.appendChild(b);});}
+
+function buildFilters(){
+  const el=document.getElementById('filters');
+  const zones=[].concat.apply([],[]); const zs={};ndPops().forEach(function(p){zs[p.zone]=1;});
+  const zoneOpts=['<option value="">Alle zones</option>'].concat(Object.keys(zs).sort().map(function(z){return '<option'+(fZone===z?' selected':'')+'>'+z+'</option>';}));
+  let h='<span class="flab">Maand</span><div class="seg nd" id="fM">'+
+    ['both|Nov + Dec','nov|November','dec|December'].map(function(x){const v=x.split('|')[0];return '<button data-v="'+v+'" class="'+(fMonth===v?'on':'')+'">'+x.split('|')[1]+'</button>';}).join('')+'</div>'+
+    '<span class="flab">Zone</span><select id="fZone">'+zoneOpts.join('')+'</select>';
+  if(TAB==='dash'){
+    h='<span class="flab">Dashboard</span><div class="seg nd" id="fM">'+
+      ['both|Nov + Dec','nov|November','dec|December'].map(function(x){const v=x.split('|')[0];return '<button data-v="'+v+'" class="'+(fMonth===v?'on':'')+'">'+x.split('|')[1]+'</button>';}).join('')+'</div>'+
+      '<span class="flab">Zone</span><select id="fZone">'+zoneOpts.join('')+'</select>';
+  }
+  el.innerHTML=h;
+  const fM=el.querySelector('#fM');if(fM)fM.querySelectorAll('button').forEach(function(b){b.onclick=function(){fMonth=b.dataset.v;render();};});
+  const fz=el.querySelector('#fZone');if(fz)fz.onchange=function(){fZone=this.value;render();};
+}
+
+let lastTab=null;
+function render(){
+  closeFilterPop();
+  // focus-behoud voor filtervelden
+  const af=document.activeElement;let restore=null;
+  if(af&&af.getAttribute&&af.getAttribute('data-xtf')!=null){try{restore={k:af.getAttribute('data-xtf'),pos:af.selectionStart};}catch(e){restore={k:af.getAttribute('data-xtf')};}}
+  buildTabs();buildFilters();
+  const w=document.getElementById('wrap');w.innerHTML='';
+  ({dash:vDash,taken:vTaken,zones:vZones,status:vStatus}[TAB]||vDash)(w);
+  xtbind(w);
+  document.getElementById('btnRemind').textContent=(PREFS.remind?'🔔 Reminders aan':'🔕 Reminders uit');
+  if(lastTab!==TAB){window.scrollTo(0,0);lastTab=TAB;}
+  if(restore){const el=document.querySelector('[data-xtf="'+restore.k+'"]');if(el){el.focus();if(restore.pos!=null&&el.setSelectionRange)try{el.setSelectionRange(restore.pos,restore.pos);}catch(e){}}}
+}
+function monthLabel(){return fMonth==='nov'?'November 2026':fMonth==='dec'?'December 2026':'November + December 2026';}
+function popsFiltered(){let ps=ndPops();if(fZone)ps=ps.filter(function(p){return p.zone===fZone;});
+  if(fMonth==='nov')ps=ps.filter(function(p){return novHP(p)>0||popLines(p).some(function(l){return l.maand===11;});});
+  if(fMonth==='dec')ps=ps.filter(function(p){return decHP(p)>0||popLines(p).some(function(l){return l.maand===12;});});
+  return ps;}
+
+/* ===== DASHBOARD ===== */
+function progBar(pct){return '<div style="display:flex;align-items:center;gap:7px"><div class="prog" style="flex:1;min-width:60px"><span class="pdone" style="width:'+pct+'%"></span><span class="popen" style="width:'+(100-pct)+'%"></span></div><span class="mini tnum">'+pct+'%</span></div>';}
+function physBar(lab,agg){return '<div class="mb-made" style="margin:9px 0"><div style="width:230px;font-weight:600">'+esc(lab)+'</div>'+
+  '<div class="bar"><div class="prog"><span class="pdone" style="width:'+agg.pct+'%;background:var(--done)"></span><span class="popen" style="width:'+(100-agg.pct)+'%"></span></div></div>'+
+  '<div class="tnum mini" style="width:170px;text-align:right;color:var(--fg)">'+agg.done+' / '+agg.tot+' POC ('+agg.pct+'%)</div></div>';}
+function vDash(w){
+  const ps=popsFiltered();const mk=fMonth;
+  const showN=mk!=='dec',showD=mk!=='nov';
+  const novPops=ps.filter(function(p){return novHP(p)>0;});
+  const decPops=ps.filter(function(p){return decHP(p)>0;});
+  let planN=0,planD=0;ps.forEach(function(p){planN+=novHP(p);planD+=decHP(p);});
+  const aggAll=aggPhys(ps),aggN=aggPhys(novPops),aggD=aggPhys(decPops);
+  let h='<div class="notice i"><span>◱</span><div><b>Fysieke voortgang</b> uit de gekoppelde tekeningen + actuals: geblazen strengen en gelaste POC’s t.o.v. de volledige scope. <b>Gepland HP</b> is het maanddoel uit de HP-planning. (M-POC = alleen blazen; dist-kabel 99 = civiel, telt niet mee.)</div></div>';
+  const kp=[];
+  kp.push(['Fysiek af','done',aggAll.pct+'%',aggAll.done+' / '+aggAll.tot+' POC gelast']);
+  kp.push(['Geblazen strengen','accent',aggAll.strDone+' / '+aggAll.strTot,'uit tekening']);
+  if(showN)kp.push(['November','nov',fmt(planN),'HP gepland · '+aggN.pct+'% af']);
+  if(showD)kp.push(['December','dec',fmt(planD),'HP gepland · '+aggD.pct+'% af']);
+  kp.push(['POP-zones','wait',ps.length,monthLabel()]);
+  h+='<div class="kpis">'+kp.map(function(k){
+    return '<div class="kpi"><div class="lab"><span class="dot" style="background:var(--'+k[1]+')"></span>'+k[0]+'</div>'+
+      '<div class="val tnum">'+k[2]+'</div><div class="pct">'+(k[3]||'')+'</div></div>';}).join('')+'</div>';
+
+  h+='<div class="card"><div class="hd"><h3>Fysieke voltooiing — gelaste POC’s / totaal</h3></div><div class="bd">';
+  if(showN)h+=physBar('November · POP-zones ('+fmt(planN)+' HP gepland)',aggN);
+  if(showD)h+=physBar('December · POP-zones ('+fmt(planD)+' HP gepland)',aggD);
+  h+=physBar('Alle getoonde POP-zones',aggAll);
+  h+='<div class="mini" style="margin-top:8px;color:var(--faint)">Balk = gelaste POC’s / totaal te lassen POC’s (excl. M-POC’s en civiel-99). Zie per POP-zone de details hieronder.</div></div></div>';
+
+  const recs=ps.map(function(p){const ph=physProgress(p)||{tot:0,done:0,pct:0,strTot:0,strDone:0,src:'—'};
+    return {pop:p.pop,p:p,zone:p.zone.replace('MRO_',''),naam:(p.label||p.pop),
+      gepland:plannedHP(p,mk),blaasN:ph.strDone,blaas:ph.strDone+'/'+ph.strTot,
+      gelastN:ph.done,gelast:ph.done+'/'+ph.tot,pct:ph.pct,bron:ph.src,tekening:trackerUrl(p)?'ja':'nee'};});
+  const cols=[
+    {k:'zone',l:'Zone',t:'select',w:130},{k:'naam',l:'POP-zone',t:'select',cls:'name',w:150,cell:function(r){return popNameHTML(r.p);}},
+    {k:'gepland',l:'Gepland HP',t:'num',w:96,cell:function(r){return fmt(r.gepland);}},
+    {k:'blaas',l:'Geblazen str.',t:'num',num:true,w:104,val:function(r){return r.blaasN;},cell:function(r){return '<span class="tnum">'+r.blaas+'</span>';}},
+    {k:'gelast',l:'Gelast POC',t:'num',num:true,w:100,val:function(r){return r.gelastN;},cell:function(r){return '<span class="tnum" style="color:var(--done)">'+r.gelast+'</span>';}},
+    {k:'pct',l:'Voortgang',t:'num',w:176,cell:function(r){return progBar(r.pct);}},
+    {k:'bron',l:'Bron',t:'select',w:96,cell:function(r){return r.bron==='tekening'?'<span class="mini">tekening</span>':'<span class="mini" style="color:var(--nov)">afgeleid</span>';}},
+    {k:'tekening',l:'Tekening',t:'select',sort:false,w:96,cell:function(r){const u=trackerUrl(r.p);return u?'<a class="tk" href="'+u+'" target="_blank" rel="noopener">openen ↗</a>':'<span class="mini">—</span>';}}
+  ];
+  h+='<h3 style="font-size:14px;margin:4px 0 8px">Per POP-zone — fysieke voortgang</h3>';
+  h+=xtable('dash',cols,recs,{sort:{k:'pct',dir:-1},unit:'POP-zones · '+monthLabel(),csvName:'dashboard'});
+  w.innerHTML=h;
+}
+function monthBar(lab,made,plan,col){const pct=plan>0?Math.min(100,Math.round(100*made/plan)):0;
+  return '<div class="mb-made" style="margin:9px 0"><div style="width:90px;font-weight:600">'+lab+'</div>'+
+    '<div class="bar"><div class="prog"><span class="pdone" style="width:'+pct+'%;background:var(--done)"></span><span class="popen" style="width:'+(100-pct)+'%"></span></div></div>'+
+    '<div class="tnum mini" style="width:140px;text-align:right;color:var(--fg)">'+fmt(made)+' / '+fmt(plan)+' HP ('+pct+'%)</div></div>';}
+function legendMade(){return '<div class="legend"><span class="it"><span class="sw" style="background:var(--done)"></span>Gemaakt (geblazen/aangelegd)</span><span class="it"><span class="sw" style="background:var(--wait)"></span>Nog te maken</span></div>';}
+
+/* ===== TAKEN / LIJNEN (Excel-tabel) ===== */
+let takenF={}, takenSort={key:'hp',dir:-1};
+function lijnStatus(st){
+  if(st.civiel99)return st.civielOk?'Civiel gereed (99)':'Civiel (99)';
+  if(!st.uitvoerbaar)return 'Geblokkeerd';
+  if(st.lasDone)return 'Las gereed';
+  if(st.lasPartial)return 'Las bezig';
+  if(st.blaasDone)return 'Las planbaar';
+  if(st.placeStage==='planbaar')return (st.type==='facade'?'Façade':'Blaas')+' planbaar';
+  return 'Wacht op civiel';
+}
+function statusCls(s){return s==='Geblokkeerd'?'b-block':(s==='Las gereed'||s==='Civiel gereed (99)')?'b-done':s==='Las bezig'?'b-nov':s.indexOf('planbaar')>=0?'b-plan':'b-wait';}
+const TYPE_LBL={graaf:'Graaf',facade:'Façade',verg:'Vergunning',overig:'Overig'};
+function cbLine(f,on,title){return '<input type="checkbox" data-e="'+f+'"'+(title?' title="'+esc(title)+'"':'')+(on?' checked':'')+'>';}
+function lineRec(p,l){const st=lineState(p,l);
+  return {id:l.id,p:p,l:l,st:st,
+    zone:p.zone.replace('MRO_',''),pop:(p.label||p.pop),maand:l.maand===11?'Nov':'Dec',
+    type:TYPE_LBL[st.type]||'Overig',seg:l.desc,hp:l.hp,
+    civiel:st.civielOk?'Ja':'Nee',
+    blaas:(st.civiel99?'n.v.t.':(st.type==='facade'?'n.v.t.':(st.blaasDone?'Ja':'Nee'))),
+    facade:(st.civiel99?'n.v.t.':(st.type==='facade'?(st.blaasDone?'Ja':'Nee'):'n.v.t.')),
+    las:(st.civiel99?'n.v.t.':(st.lasDone?'Ja':'Nee')),uitv:st.uitvoerbaar?'Ja':'Nee',
+    volledig:(st.civiel99?(st.civielOk?'Ja':'Nee'):(st.placeStage==='done'&&st.lasStage==='done')?'Ja':'Nee'),
+    status:lijnStatus(st),target:st.target||''};}
+function lijnCols(withZonePop){
+  const c=[];
+  if(withZonePop)c.push({k:'zone',l:'Zone',t:'select',w:124},{k:'pop',l:'POP',t:'select',cls:'name',w:138,cell:function(r){return popNameHTML(r.p);}});
+  c.push(
+    {k:'maand',l:'Maand',t:'select',w:74,cell:function(r){return '<span class="badge b-'+(r.maand==='Nov'?'nov':'dec')+'">'+r.maand+'</span>';}},
+    {k:'type',l:'Type',t:'select',w:104,cell:function(r){return '<select data-e="type">'+['graaf','facade','verg','overig'].map(function(t){return '<option value="'+t+'"'+(r.st.type===t?' selected':'')+'>'+TYPE_LBL[t]+'</option>';}).join('')+'</select>';}},
+    {k:'seg',l:'Segment / omschrijving',t:'text',cls:'segc',w:300,cell:function(r){return '<input type="text" class="seginp" data-e="desc" value="'+esc(r.seg)+'" title="'+esc(r.seg)+'">';}},
+    {k:'hp',l:'HP',t:'num',w:70},
+    {k:'civiel',l:'Civiel',t:'select',cls:'ctr',w:82,cell:function(r){return cbLine('civielOk',r.st.civielOk);}},
+    {k:'blaas',l:'Blaas',t:'select',cls:'ctr',w:80,cell:function(r){return r.st.type==='facade'?'<span class="mini">n.v.t.</span>':cbLine('blaasDone',r.st.blaasDone,'Blaas gedaan');}},
+    {k:'facade',l:'Façade',t:'select',cls:'ctr',w:84,cell:function(r){return r.st.type==='facade'?cbLine('blaasDone',r.st.blaasDone,'Façade gedaan'):'<span class="mini">n.v.t.</span>';}},
+    {k:'las',l:'Las',t:'select',cls:'ctr',w:76,cell:function(r){return cbLine('lasDone',r.st.lasDone);}},
+    {k:'uitv',l:'Uitvoerbaar',t:'select',cls:'ctr',w:96,cell:function(r){return cbLine('uitvoerbaar',r.st.uitvoerbaar);}},
+    {k:'volledig',l:'Volledig',t:'select',w:84,cell:function(r){return r.volledig==='Ja'?'<span style="color:var(--done);font-weight:700">✓</span>':'<span class="mini">nee</span>';}},
+    {k:'status',l:'Status',t:'select',w:150,cell:function(r){const mis=r.st.lasMissing||[];
+      const extra=(r.status==='Las bezig'&&mis.length)?' ('+mis.length+')':'';
+      const title=mis.length?' title="Nog te lassen: '+esc(mis.join(', '))+'"':'';
+      return '<span class="badge '+statusCls(r.status)+'"'+title+'>'+r.status+extra+'</span>';}},
+    {k:'target',l:'Streefdatum',t:'date',w:116,cell:function(r){return '<input type="text" class="dinp" data-e="target" value="'+fmtDate(r.st.target)+'" placeholder="dd/mm/jjjj">';}}
+  );
+  return c;
+}
+function vTaken(w){
+  const ps=popsFiltered();let recs=[];
+  ps.forEach(function(p){popLines(p).forEach(function(l){
+    if(fMonth==='nov'&&l.maand!==11)return; if(fMonth==='dec'&&l.maand!==12)return;
+    recs.push(lineRec(p,l));});});
+  let h='<div class="notice i"><span>⛏</span><div>Filter en sorteer per kolom zoals in Excel. Elke regel is één HP-segment met de keten <b>civiel → blaas/façade → las</b>; type, vinkjes, segmenttekst en streefdatum pas je rechtstreeks in de rij aan.</div></div>';
+  h+=xtable('taken',lijnCols(true),recs,{rowId:function(r){return r.id;},unit:'lijnen · '+monthLabel(),csvName:'taken_lijnen'});
+  w.innerHTML=h;
+  bindTakenRows(w);
+}
+function bindTakenRows(w){
+  w.querySelectorAll('tr[data-id]').forEach(function(tr){const id=tr.dataset.id;
+    tr.querySelectorAll('input[type=checkbox][data-e]').forEach(function(c){c.onchange=function(){const o={};o[c.dataset.e]=c.checked;setLine(id,o);refresh();};});
+    const sel=tr.querySelector('select[data-e=type]');if(sel)sel.onchange=function(){setLine(id,{type:sel.value});refresh();};
+    const dt=tr.querySelector('input[data-e=target]');if(dt)dt.onchange=function(){setLine(id,{target:parseDMY(dt.value)});refresh();};
+    const sg=tr.querySelector('input[data-e=desc]');if(sg)sg.onchange=function(){setLine(id,{desc:sg.value});refresh();};
+  });
+}
+function lineHTML(p,l,st){
+  const place = st.type==='facade'?'Façade':'Blaas';
+  return '<div class="lijn" data-id="'+esc(l.id)+'">'+
+    '<div class="l1"><span class="ttag t-'+(st.type==='verg'?'verg':st.type==='facade'?'facade':st.type==='graaf'?'graaf':'overig')+'">'+(TYPE_LBL[st.type]||'Overig')+'</span>'+
+      '<span class="code">'+esc(trunc(l.desc,52))+'</span>'+
+      '<span class="badge b-'+(l.maand===11?'nov':'dec')+'">'+(l.maand===11?'Nov':'Dec')+'</span>'+
+      '<span class="mini">'+l.hp+' HP</span><span class="sp"></span>'+
+      (st.target?'<span class="mini">⏱ '+fmtDate(st.target)+'</span>':'')+'</div>'+
+    '<div class="stages">'+
+      stageChip(st.type==='facade'?'Façade':'Civiel', st.type==='facade'?(st.placeStage):(st.civielOk?'done':'gepland'))+
+      (st.type==='facade'?'':stageChip('Blaas',st.placeStage))+
+      stageChip('Las',st.lasStage)+'</div>'+
+      ((st.lasPartial&&st.lasMissing&&st.lasMissing.length)?'<div class="mini" style="margin-top:6px;color:var(--nov)">Nog te lassen: '+esc(st.lasMissing.join(', '))+'</div>':'')+
+    '<div class="lctrl">'+
+      '<label class="chk"><input type="checkbox" data-f="civielOk" '+(st.civielOk?'checked':'')+'> civiel/opmerking in orde</label>'+
+      '<label class="chk"><input type="checkbox" data-f="blaasDone" '+(st.blaasDone?'checked':'')+'> '+place+' gedaan</label>'+
+      '<label class="chk"><input type="checkbox" data-f="lasDone" '+(st.lasDone?'checked':'')+'> las gedaan</label>'+
+      '<span class="toggle"><span class="sw-t '+(st.uitvoerbaar?'on':'')+'" data-f="uitvoerbaar" role="switch" aria-checked="'+st.uitvoerbaar+'"></span>uitvoerbaar om te blazen</span>'+
+      '<label class="chk">type <select data-f="type">'+['graaf','facade','verg','overig'].map(function(t){return '<option value="'+t+'"'+(st.type===t?' selected':'')+'>'+TYPE_LBL[t]+'</option>';}).join('')+'</select></label>'+
+      '<label class="chk">streefdatum <input type="text" class="dinp" data-f="target" value="'+fmtDate(st.target)+'" placeholder="dd/mm/jjjj"></label>'+
+    '</div></div>';
+}
+function stageChip(lab,stage){const cls='s-'+stage;const txt=(stage==='nvt'?'n.v.t.':stage);return '<span class="stage '+cls+'"><span class="sdot"></span>'+lab+': '+txt+'</span>';}
+function bindLines(w){
+  w.querySelectorAll('.lijn').forEach(function(el){const id=el.dataset.id;
+    el.querySelectorAll('input[type=checkbox]').forEach(function(c){c.onchange=function(){const o={};o[c.dataset.f]=c.checked;setLine(id,o);refresh();};});
+    const sw=el.querySelector('.sw-t');if(sw)sw.onclick=function(){setLine(id,{uitvoerbaar:!sw.classList.contains('on')});refresh();};
+    const sel=el.querySelector('select[data-f=type]');if(sel)sel.onchange=function(){setLine(id,{type:sel.value});refresh();};
+    const dt=el.querySelector('input[data-f=target]');if(dt)dt.onchange=function(){setLine(id,{target:parseDMY(dt.value)});refresh();};
+  });
+}
+
+/* ===== POP-ZONES (Excel-tabel + detailvenster) ===== */
+function vZones(w){
+  const ps=popsFiltered();const mk=fMonth;
+  const recs=ps.map(function(p){const nl=popLines(p);const plan=plannedHP(p,mk);
+    const ph=physProgress(p)||{tot:0,done:0,pct:0,strDone:0,strTot:0};
+    const st=STAT[p.pop]||{};const nDone=STATUS_ITEMS.filter(function(it){return st[it[0]]&&st[it[0]].done;}).length;
+    const di=dpInfo(p);
+    return {pop:p.pop,p:p,zone:p.zone.replace('MRO_',''),naam:(p.label||p.pop),
+      nov:novHP(p),dec:decHP(p),plan:plan,gelastN:ph.done,gelast:ph.done+'/'+ph.tot,
+      pct:ph.pct,lijnen:nl.length,
+      tekening:trackerUrl(p)?'ja':'nee',status:nDone+'/8',
+      oper:isOperational(p)?'operationeel':'—',
+      pdp:di.pdpDone?'gelast':'nee',dplas:di.doneN+'/'+di.totN,dpmiss:di.missing};});
+  const cols=[
+    {k:'zone',l:'Zone',t:'select',w:132},{k:'naam',l:'POP-zone',t:'select',cls:'name',w:150,cell:function(r){return popNameHTML(r.p);}},
+    {k:'oper',l:'Operationeel',t:'select',w:108,cell:function(r){return isOperational(r.p)?'<span class="op">✓ ja</span>':'<span class="mini">—</span>';}},
+    {k:'nov',l:'Nov HP',t:'num',w:78,cell:function(r){return r.nov?fmt(r.nov):'·';}},
+    {k:'dec',l:'Dec HP',t:'num',w:78,cell:function(r){return r.dec?fmt(r.dec):'·';}},
+    {k:'plan',l:'Gepland HP',t:'num',w:92,cell:function(r){return fmt(r.plan);}},
+    {k:'gelast',l:'Gelast POC',t:'num',num:true,w:100,val:function(r){return r.gelastN;},cell:function(r){return '<span class="tnum" style="color:var(--done)">'+r.gelast+'</span>';}},
+    {k:'pct',l:'Voortgang',t:'num',w:170,cell:function(r){return progBar(r.pct);}},
+    {k:'lijnen',l:'Lijnen',t:'num',w:72},
+    {k:'pdp',l:'PDP-las',t:'select',w:84,cell:function(r){return r.pdp==='gelast'?'<span style="color:var(--done);font-weight:600">✓</span>':'<span class="mini">nee</span>';}},
+    {k:'dplas',l:'DP-las',t:'select',w:84,cell:function(r){return '<span class="tnum" title="'+(r.dpmiss.length?'nog: '+r.dpmiss.join(', '):'alle DP gelast')+'">'+r.dplas+'</span>';}},
+    {k:'status',l:'POP-status',t:'select',w:92,cell:function(r){return '<span class="mini tnum">'+r.status+'</span>';}},
+    {k:'tekening',l:'Tekening',t:'select',sort:false,w:96,cell:function(r){const u=trackerUrl(r.p);return u?'<a class="tk" href="'+u+'" target="_blank" rel="noopener">openen ↗</a>':'<span class="mini">—</span>';}},
+    {k:'det',l:'Detail',t:'none',sort:false,w:84,cell:function(r){return '<button class="btn sm" data-det="'+esc(r.pop)+'">detail</button>';}}
+  ];
+  let h='<div class="notice i"><span>◉</span><div>Overzicht per POP-zone — filter en sorteer per kolom. «Detail» opent de tekening, de POP-status en alle lijnen van die zone.</div></div>';
+  h+=xtable('zones',cols,recs,{rowId:function(r){return r.pop;},unit:'POP-zones · '+monthLabel(),csvName:'pop_zones'});
+  w.innerHTML=h;
+  w.querySelectorAll('[data-det]').forEach(function(b){b.onclick=function(){openPopDetail(b.dataset.det,true);};});
+}
+const STATUS_SHORT={sokkel:'Sokkel',popkast:'POP-kast',pdp:'PDP',lskast:'LS-kastje',lsfluvius:'LS-Fluvius',swstroom:'SW stroom',feedblazen:'FEED blaas',feedlas:'FEED las'};
+function statusOneLine(p){const st=STAT[p.pop]||{};
+  return '<div class="statusline">'+STATUS_ITEMS.map(function(it){const v=st[it[0]];
+    return '<span class="sli stv-wrap" data-pop="'+esc(p.pop)+'" data-k="'+it[0]+'" title="'+esc(it[1])+'">'+STATUS_SHORT[it[0]]+' '+statusMark(v)+'</span>';}).join('')+'</div>';}
+function bindStatusLine(m){m.querySelectorAll('.stv-wrap').forEach(function(el){el.style.cursor='pointer';
+  el.onclick=function(){const pop=el.dataset.pop,k=el.dataset.k;STAT[pop]=STAT[pop]||{};const cur=STAT[pop][k]&&STAT[pop][k].done;
+    STAT[pop][k]={done:!cur,date:!cur?todayISO():''};save(LS.stat,STAT);refresh();};});}
+function openPopDetail(popId,reset){
+  const p=DATA.pops.find(function(x){return x.pop===popId;});if(!p)return;
+  const url=trackerUrl(p);const di=dpInfo(p);const todo=lasTodo(p);
+  const recs=popLines(p).filter(function(l){return fMonth==='nov'?l.maand===11:fMonth==='dec'?l.maand===12:true;}).map(function(l){return lineRec(p,l);});
+  const S=xtstate('detail');if(reset)S.f={volledig:['Nee']};
+  let b='<div class="dsec"><div class="dsec-t">POP-status</div>'+statusOneLine(p)+'</div>';
+  b+='<div class="dsec"><div class="dsec-t">Primaire distributie — PDP → prim → DP → POC</div>'+primPanelHTML(p)+'</div>';
+  b+='<div class="dsec"><div class="dline">'+
+     (url?'<a class="btn sm accent" href="'+url+'" target="_blank" rel="noopener">🗺 Open tekening ↗</a>':'<span class="mini">🗺 Tekening nog niet beschikbaar</span>')+
+     (p.omschrijving?'<span class="mini" style="flex:1;min-width:0">'+esc(p.omschrijving)+'</span>':'')+'</div></div>';
+  b+='<div class="dsec-t" style="margin-top:2px">Lijnen — standaard gefilterd op «nog niet volledig uitgevoerd»</div>';
+  if(!recs.length)b+='<div class="mini">Geen HP-segmenten in de Nov/Dec-opmerkingen voor deze selectie.</div>';
+  else b+=xtable('detail',lijnCols(false),recs,{rowId:function(r){return r.id;},unit:'lijnen',csvName:'pop_'+(p.label||p.pop)+'_lijnen'});
+  openModal((isOperational(p)?'✓ ':'')+(p.label||p.pop)+' · '+p.zone.replace('MRO_',''),b,function(m){
+    bindTakenRows(m);xtbind(m);bindStatusLine(m);
+  },'full');
+  openDetailPop=popId;
+}
+let openDetailPop=null;
+function refresh(){const keep=openDetailPop;render();if(keep)openPopDetail(keep,false);}
+function statusChecklist(p){
+  const st=STAT[p.pop]||{};
+  return '<div class="checklist" data-pop="'+esc(p.pop)+'">'+STATUS_ITEMS.map(function(it){
+    const v=st[it[0]]||{};const done=!!v.done;const nvt=!!v.nvt;
+    const sub=v.date?fmtDate(v.date):(v.note?esc(trunc(v.note,34)):(nvt?'n.v.t.':''));
+    return '<div class="cli'+(done?' done':'')+(nvt?' nvt':'')+'" data-k="'+it[0]+'" title="'+esc(v.note||'')+'"><span class="ci">'+(done?'✓':(nvt?'–':''))+'</span>'+
+      '<span class="clab">'+it[1]+(sub?'<div class="cdate">'+sub+'</div>':'')+'</span></div>';
+  }).join('')+'</div>';
+}
+function bindStatusItem(cli){
+  const pop=cli.closest('.checklist').dataset.pop,k=cli.dataset.k;
+  cli.onclick=function(){STAT[pop]=STAT[pop]||{};const cur=STAT[pop][k]&&STAT[pop][k].done;
+    STAT[pop][k]={done:!cur,date:!cur?new Date().toISOString().slice(0,10):''};save(LS.stat,STAT);refresh();};
+}
+
+/* ===== POP-STATUS overzicht (Excel-tabel) ===== */
+function statusVal(v){return v&&v.done?'✓ klaar':v&&v.nvt?'– n.v.t.':v&&v.note?'● notitie':'· open';}
+function statusMark(v){return v&&v.done?'<span class="stv d" title="'+esc(v.date?fmtDate(v.date):'klaar')+'">✓</span>':v&&v.nvt?'<span class="stv n">–</span>':v&&v.note?'<span class="stv o" title="'+esc(v.note)+'">●</span>':'<span class="stv e">·</span>';}
+function vStatus(w){
+  const ps=popsFiltered();const hasImport=Object.keys(STAT).length>0;
+  const recs=ps.map(function(p){const st=STAT[p.pop]||{};const r={pop:p.pop,zone:p.zone.replace('MRO_',''),naam:(p.label||p.pop)};
+    STATUS_ITEMS.forEach(function(it){r[it[0]]=statusVal(st[it[0]]);});return r;});
+  const cols=[{k:'zone',l:'Zone',t:'select',w:132},{k:'naam',l:'POP-zone',t:'select',cls:'name',w:150,cell:function(r){const p=DATA.pops.find(function(x){return x.pop===r.pop;});return popNameHTML(p);}}].concat(
+    STATUS_ITEMS.map(function(it){return {k:it[0],l:it[1].replace(' geplaatst','').replace(' aangesloten door','').replace('POP-kast','POP-kast'),t:'select',cls:'ctr',w:104,
+      cell:function(r){const st=STAT[r.pop]||{};return '<span class="stv-wrap" data-pop="'+esc(r.pop)+'" data-k="'+it[0]+'" title="'+esc(it[1])+'">'+statusMark(st[it[0]])+'</span>';}};}));
+  let h='<div class="notice '+(hasImport?'i':'w')+'"><span>▣</span><div>'+(hasImport?
+    'Status per POP-zone — filter/sorteer per kolom, klik een cel om te wisselen. Herimport via «POP-status» rechtsboven.':
+    'Nog geen POP-status geïmporteerd. Upload «POP status wyre.xlsx» via de knop rechtsboven (8 statuskolommen worden automatisch herkend), of klik de cellen aan om handmatig bij te houden.')+'</div></div>';
+  h+=xtable('status',cols,recs,{unit:'POP-zones · '+monthLabel(),csvName:'pop_status'});
+  w.innerHTML=h;
+  w.querySelectorAll('.stv-wrap').forEach(function(el){el.style.cursor='pointer';el.onclick=function(){const pop=el.dataset.pop,k=el.dataset.k;
+    STAT[pop]=STAT[pop]||{};const cur=STAT[pop][k]&&STAT[pop][k].done;
+    STAT[pop][k]={done:!cur,date:!cur?new Date().toISOString().slice(0,10):''};save(LS.stat,STAT);refresh();};});
+}
+
+/* ---------- uploads ---------- */
+// planning (HP delivered) — zelfde structuur als bron
+const YEAR_COLS={2026:rng(5,16),2027:rng(18,29),2028:rng(30,41),2029:rng(42,53),2030:rng(54,62)};
+function rng(a,b){const r=[];for(let i=a;i<=b;i++)r.push(i);return r;}
+function colYM(ci){if(ci===4)return[2025,null];for(const y in YEAR_COLS){const k=YEAR_COLS[y].indexOf(ci);if(k>=0)return[+y,k+1];}return[null,null];}
+function cnum(v){if(v==null||v==='')return 0;const n=parseFloat(v);return isNaN(n)?0:n;}
+document.getElementById('inPlan').onchange=function(){const f=this.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=function(){try{const wb=XLSX.read(new Uint8Array(rd.result),{type:'array',cellComments:true});
+    const det=wb.Sheets['Detail per POP'];if(!det)throw new Error("blad 'Detail per POP' ontbreekt");
+    const A=XLSX.utils,cell=function(r,c){return det[A.encode_cell({r:r,c:c})];};
+    function val(r,c){const x=cell(r,c);return x?(x.v!=null?x.v:(x.w||'')):null;}
+    function cmt(r,c){const x=cell(r,c);if(x&&x.c&&x.c.length)return x.c.map(function(o){return (o.t||'').replace(/\r/g,'');}).join('\n').replace(/^\s*[^:\n]{1,40}:\s*\n?/,'').trim();return null;}
+    const pops=[],zones=[];
+    for(let r=2;r<=63;r++){const zone=val(r,0),popn=val(r,1);if(!zone&&!popn)continue;
+      const monthly={};for(const y in YEAR_COLS)monthly[y]=YEAR_COLS[y].map(function(ci){return cnum(val(r,ci));});
+      let label=popn;if(popn&&zone&&String(popn).indexOf(zone)===0)label=String(popn).slice(zone.length).replace(/^_+/,'');
+      const comments=[];for(let c=0;c<=62;c++){const t=cmt(r,c);if(t){const ym=colYM(c);comments.push({cell:A.encode_cell({r:r,c:c}),year:ym[0],month:ym[1],text:t});}}
+      pops.push({zone:zone,pop:popn,label:label,omschrijving:val(r,2),hp_total:cnum(val(r,3)),y2025:cnum(val(r,4)),monthly:monthly,comments:comments});
+      if(zone&&zones.indexOf(zone)<0)zones.push(zone);}
+    if(!pops.length)throw new Error('geen POP-rijen');
+    DATA={months:MONTHS,years:SEED.years,zones:zones,pops:pops};save(LS.data,DATA);
+    toast('Planning bijgewerkt: '+pops.length+' POP’s.');render();
+  }catch(e){toast('Planning inlezen mislukt: '+e.message,'w');}};rd.readAsArrayBuffer(f);this.value='';};
+
+// actuals
+function popIndex(){const ix={};DATA.pops.forEach(function(p){const zk=(p.zone||'').replace(/^MRO_/,'').toUpperCase();const pn=popNum(p);if(zk&&pn)ix[zk+'#'+pn]=p.pop;});return ix;}
+function isoDate(v){if(v==null||v==='')return null;
+  if(Object.prototype.toString.call(v)==='[object Date]'&&!isNaN(v))return v.getFullYear()+'-'+String(v.getMonth()+1).padStart(2,'0')+'-'+String(v.getDate()).padStart(2,'0');
+  if(typeof v==='number'&&v>20000&&v<80000){const d=new Date(Math.round((v-25569)*86400*1000));if(!isNaN(d))return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
+  let s=String(v).trim();if(!s)return null;let m=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);if(m){let y=m[3];if(y.length===2)y='20'+y;return y+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');}
+  m=s.match(/(\d{4})-(\d{2})-(\d{2})/);if(m)return m[1]+'-'+m[2]+'-'+m[3];const d=new Date(s);if(!isNaN(d))return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');return null;}
+function findCol(H,subs){for(let i=0;i<H.length;i++){const h=(H[i]||'').toString().toLowerCase().trim();for(const s of subs)if(h.indexOf(s)>=0)return i;}return -1;}
+const BLOW_WT=/blaz|gevel|facade|façade|aerial|hangen|aanleg|plaats/i;
+document.getElementById('inAct').onchange=function(){const f=this.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=function(){try{const wb=XLSX.read(new Uint8Array(rd.result),{type:'array',cellDates:true});
+    const ix=popIndex();const byPop={};let used=0,sheets=0;const noPop={};
+    function cell(r,i){return i<0||i>=r.length?'':(r[i]==null?'':r[i]);}
+    wb.SheetNames.forEach(function(nm){if(!/^actuals/i.test(nm))return;
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,raw:true,defval:''});if(!rows.length)return;
+      let hdr=-1;for(let i=0;i<Math.min(4,rows.length);i++){if((rows[i]||[]).join('|').toLowerCase().indexOf('hub/mro')>=0){hdr=i;break;}}if(hdr<0)return;
+      const H=rows[hdr];const cZone=findCol(H,['hub/mro']),cPz=findCol(H,['popzone']),cDp=findCol(H,['dp nr','dp-nr','dpnr']),cKab=findCol(H,['kabelnr']),cWt=findCol(H,['werktype']),cPoc=findCol(H,['poc nr','pocnr']),cEnd=findCol(H,['enddate','einddat']),cLas=findCol(H,['lasjes','aantal las']);
+      if(cZone<0||cPz<0||cEnd<0)return;sheets++;
+      for(let i=hdr+1;i<rows.length;i++){const r=rows[i]||[];const zone=String(cell(r,cZone)).trim(),pz=String(cell(r,cPz)).trim();if(!zone&&!pz)continue;
+        const iso=isoDate(cell(r,cEnd));if(!iso)continue;const zk=zone.replace(/^MRO_/i,'').toUpperCase();const pn=pz.replace(/\D/g,'').padStart(3,'0');
+        const pid=ix[zk+'#'+pn];if(!pid){noPop[zk+'#'+pn]=1;continue;}
+        const R=byPop[pid]||(byPop[pid]={strengen:{},pocs:{},lasStrengen:{},dpLas:{},primDPs:{},feedBlazen:'',updated:''});
+        const kabRaw=String(cell(r,cKab)).toUpperCase().replace(/\s/g,'');
+        const wt=String(cell(r,cWt)).toLowerCase(),kab=normKab(cell(r,cKab)),poc=normPoc(cell(r,cPoc)),las=String(cell(r,cLas)).trim(),dp=String(cell(r,cDp)).replace(/\D/g,'');
+        if(iso>R.updated)R.updated=iso;used++;const st=strengOf(kab);const isLas=/las/i.test(wt)||(!wt&&/\d/.test(las));
+        const isPrim=/\d{3}-\d{3}/.test(kabRaw);
+        if(/^FEED/i.test(kabRaw)){if(!R.feedBlazen||iso<R.feedBlazen)R.feedBlazen=iso;}
+        else if(isPrim){const segs=kabRaw.split('-').filter(function(x){return /^\d{3}$/.test(x);});const dps=(segs[0]==='010')?segs.slice(1):segs;
+          dps.forEach(function(dn){if(!R.primDPs[dn]||iso<R.primDPs[dn])R.primDPs[dn]=iso;});}
+        else if(isLas){if(poc){if(!R.pocs[poc]||iso<R.pocs[poc])R.pocs[poc]=iso;if(st&&(!R.lasStrengen[st]||iso<R.lasStrengen[st]))R.lasStrengen[st]=iso;}
+          else if(dp){const d3=dp.padStart(3,'0');if(!R.dpLas[d3]||iso<R.dpLas[d3])R.dpLas[d3]=iso;}
+          else if(st&&(!R.lasStrengen[st]||iso<R.lasStrengen[st]))R.lasStrengen[st]=iso;}
+        else if(BLOW_WT.test(wt)||wt===''){if(st&&(!R.strengen[st]||iso<R.strengen[st]))R.strengen[st]=iso;}
+        else if(st&&(!R.strengen[st]||iso<R.strengen[st]))R.strengen[st]=iso;}
+    });
+    if(!sheets)throw new Error("geen 'Actuals'-blad gevonden");
+    Object.keys(byPop).forEach(function(pid){const nw=byPop[pid];const ex=ACT[pid]||{strengen:{},pocs:{},lasStrengen:{},dpLas:{},primDPs:{},feedBlazen:'',updated:''};
+      if(!ex.dpLas)ex.dpLas={};if(!ex.primDPs)ex.primDPs={};
+      ['strengen','pocs','lasStrengen','dpLas','primDPs'].forEach(function(s){Object.keys(nw[s]||{}).forEach(function(k){ex[s][k]=ex[s][k]?(ex[s][k]<nw[s][k]?ex[s][k]:nw[s][k]):nw[s][k];});});
+      if(nw.feedBlazen&&(!ex.feedBlazen||nw.feedBlazen<ex.feedBlazen))ex.feedBlazen=nw.feedBlazen;
+      ex.updated=nw.updated>(ex.updated||'')?nw.updated:ex.updated;ACT[pid]=ex;});
+    save(LS.act,ACT);
+    toast('Actuals verwerkt: '+used+' regels op '+Object.keys(byPop).length+' POP’s.');render();
+  }catch(e){toast('Actuals mislukt: '+e.message,'w');}};rd.readAsArrayBuffer(f);this.value='';};
+
+// POP-status
+document.getElementById('inStat').onchange=function(){const f=this.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=function(){try{const wb=XLSX.read(new Uint8Array(rd.result),{type:'array',cellDates:true});
+    const ix=popIndex();let used=0,done=0;const noPop={};let chosen=null;
+    wb.SheetNames.forEach(function(nm){const rows=XLSX.utils.sheet_to_json(wb.Sheets[nm],{header:1,raw:true,defval:''});if(!rows.length)return;
+      let hdr=-1;for(let i=0;i<Math.min(6,rows.length);i++){const line=(rows[i]||[]).join('|').toLowerCase();if((line.indexOf('pop')>=0||line.indexOf('mro')>=0)&&(line.indexOf('sokkel')>=0||line.indexOf('pdp')>=0||line.indexOf('feed')>=0)){hdr=i;break;}}
+      if(hdr<0)return;chosen=nm;const H=rows[hdr];
+      const cZone=findCol(H,['hub/mro','mro zone','mro','zone']),cPz=findCol(H,['popzone','pop zone','pop nr','pop']);
+      const cols={};STATUS_ITEMS.forEach(function(it){cols[it[0]]=findCol(H,it[2]);});
+      for(let i=hdr+1;i<rows.length;i++){const r=rows[i]||[];function g(c){return c<0||c>=r.length?'':r[c];}
+        const zone=String(g(cZone)).trim(),pz=String(g(cPz)).trim();if(!zone&&!pz)continue;
+        const zk=zone.replace(/^MRO_/i,'').toUpperCase();const pn=pz.replace(/\D/g,'').padStart(3,'0');
+        let pid=ix[zk+'#'+pn];
+        if(!pid){const guess=(zone+pz).toUpperCase().replace(/[^A-Z0-9]/g,'');DATA.pops.forEach(function(p){if(p.pop.toUpperCase().replace(/[^A-Z0-9]/g,'')===guess)pid=p.pop;});}
+        if(!pid){noPop[zk+'#'+pn]=1;continue;}used++;
+        STAT[pid]=STAT[pid]||{};
+        STATUS_ITEMS.forEach(function(it){const ci=cols[it[0]];if(ci<0)return;const raw=g(ci);
+          const s=String(raw==null?'':raw).trim();if(!s)return;const dt=isoDate(raw);
+          if(/^n\.?v\.?t\.?$/i.test(s)){STAT[pid][it[0]]={nvt:true};return;}
+          if(raw===true||/^(x|ja|yes|true|ok|1|v|✓|gereed|klaar|done|afgerond)$/i.test(s)||dt){STAT[pid][it[0]]={done:true,date:dt||''};done++;}
+          else{STAT[pid][it[0]]={done:false,note:s};}
+        });
+      }});
+    if(!chosen)throw new Error('geen herkenbaar statusblad (verwacht kolommen als POP, Sokkel, PDP, FEED…)');
+    save(LS.stat,STAT);TAB='status';
+    toast('POP-status verwerkt: '+used+' POP-rijen, '+done+' statusvelden'+(Object.keys(noPop).length?' · '+Object.keys(noPop).length+' onbekend':'')+'.');render();
+  }catch(e){toast('POP-status mislukt: '+e.message,'w');}};rd.readAsArrayBuffer(f);this.value='';};
+
+/* ---------- reminder pop-up ---------- */
+function checkReminders(){
+  if(!PREFS.remind)return;
+  const tomorrow=new Date(TODAY);tomorrow.setDate(tomorrow.getDate()+1);
+  const tISO=tomorrow.toISOString().slice(0,10);
+  const hits=[];
+  ndPops().forEach(function(p){popLines(p).forEach(function(l){const st=lineState(p,l);
+    if(st.target===tISO && !(PREFS.dismissed||{})[l.id+'|'+tISO]){hits.push({p:p,l:l,st:st});}});});
+  if(hits.length)showReminder(hits,tISO);
+}
+function showReminder(hits,tISO){
+  let b='<p style="margin:0 0 10px">Deze werken hebben <b>morgen ('+fmtDate(tISO)+')</b> als streefdatum om klaar te zijn. Pas de datum aan indien nodig.</p>';
+  hits.forEach(function(x){b+='<div class="remind-item" data-id="'+esc(x.l.id)+'"><div style="flex:1;min-width:160px"><b>'+(x.p.label||x.p.pop)+'</b> <span class="mini">'+x.p.zone.replace('MRO_','')+'</span><div class="mini">'+esc(trunc(x.l.desc,70))+'</div></div>'+
+    '<input type="text" class="dinp" value="'+fmtDate(tISO)+'" placeholder="dd/mm/jjjj"><button class="btn sm" data-act="ok">OK</button></div>';});
+  openModal('🔔 Herinnering: streefdatum morgen',b+'<div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn sm" id="remAllOk">Alles gezien</button><button class="btn sm ghost" id="remOff">Reminders uitzetten</button></div>',function(m){
+    m.querySelectorAll('.remind-item').forEach(function(it){const id=it.dataset.id;
+      it.querySelector('[data-act=ok]').onclick=function(){const nd=parseDMY(it.querySelector('input').value);
+        if(nd&&nd!==tISO)setLine(id,{target:nd}); PREFS.dismissed=PREFS.dismissed||{};PREFS.dismissed[id+'|'+tISO]=1;save(LS.prefs,PREFS);it.remove();};});
+    m.querySelector('#remAllOk').onclick=function(){hits.forEach(function(x){PREFS.dismissed=PREFS.dismissed||{};PREFS.dismissed[x.l.id+'|'+tISO]=1;});save(LS.prefs,PREFS);closeModal();render();};
+    m.querySelector('#remOff').onclick=function(){PREFS.remind=false;save(LS.prefs,PREFS);closeModal();render();};
+  });
+}
+
+/* ---------- toolbar ---------- */
+document.getElementById('btnRemind').onclick=function(){PREFS.remind=!PREFS.remind;save(LS.prefs,PREFS);render();if(PREFS.remind)checkReminders();};
+document.getElementById('btnTheme').onclick=function(){const cur=document.documentElement.getAttribute('data-theme');const nx=cur==='dark'?'light':(cur==='light'?'':'dark');if(nx)document.documentElement.setAttribute('data-theme',nx);else document.documentElement.removeAttribute('data-theme');save(LS.theme,nx||'system');};
+document.getElementById('btnExport').onclick=function(){openModal('Export (JSON back-up)',
+  '<p class="mini">Kopieer als back-up van je ingevoerde status, vinkjes en data.</p><textarea id="exp" readonly></textarea><div style="margin-top:10px"><button class="btn accent sm" id="cp">Kopieer</button></div>',
+  function(m){m.querySelector('#exp').value=JSON.stringify({data:DATA,act:ACT,stat:STAT,lines:LINES,prefs:PREFS});
+    m.querySelector('#cp').onclick=function(){const t=m.querySelector('#exp');t.select();try{navigator.clipboard.writeText(t.value);}catch(e){document.execCommand('copy');}toast('Gekopieerd.');};});};
+
+/* ---------- modal + toast ---------- */
+function openModal(title,body,after,cls){closeModal();const bg=document.createElement('div');bg.className='modal-bg';bg.id='mbg';
+  bg.innerHTML='<div class="modal '+(cls||'')+'"><div class="mh"><h3>'+esc(title)+'</h3><button class="btn sm ghost" id="mx">✕ Sluiten</button></div><div class="mb">'+body+'</div></div>';
+  document.body.appendChild(bg);bg.onclick=function(e){if(e.target===bg)closeModal();};document.getElementById('mx').onclick=closeModal;if(after)after(bg);}
+function closeModal(){const m=document.getElementById('mbg');if(m)m.remove();openDetailPop=null;}
+let toastT;function toast(msg,kind){let el=document.getElementById('toast');if(!el){el=document.createElement('div');el.id='toast';document.body.appendChild(el);}
+  el.style.background=kind==='w'?'var(--block)':'var(--accent)';el.textContent=msg;el.hidden=false;el.style.opacity='1';
+  clearTimeout(toastT);toastT=setTimeout(function(){el.style.transition='opacity .4s';el.style.opacity='0';},2800);}
+
+/* init */
+(function(){const t=load(LS.theme);if(t&&t!=='system')document.documentElement.setAttribute('data-theme',t);})();
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('mbg'))closeModal();});
+render();
+setTimeout(checkReminders,400);
+})();
+</script>
