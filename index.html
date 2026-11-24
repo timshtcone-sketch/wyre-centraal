@@ -732,6 +732,8 @@ let rt; function rerender() { if (view() === 'import' && S.pending) return; clea
 addEventListener('hashchange', () => { route(); scrollTo(0, 0); });
 
 /* ---------- Overzicht ---------- */
+// Voor de uitroltool in de iframe: adres van de tekening van een zone in deze site ('' als er nog geen is).
+window.wyreTekUrl = id => { const t = S.tekIdx[id]; return t ? location.href.split('#')[0] + '#tekening/' + encodeURIComponent(t.doc || id) : ''; };
 const tekLink = (id, kort) => { const t = S.tekIdx[id]; return t ? `<a class="${kort ? '' : 'chip'}" href="#tekening/${esc(t.doc || id)}" onclick="event.stopPropagation()">${kort ? 'tekening' : 'Tekening openen'}</a>` : ''; };
 function zoneStats(z) {
   const s = WYRE.summarize(z);

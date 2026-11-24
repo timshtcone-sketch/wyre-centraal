@@ -335,7 +335,12 @@ function normPoc(p){p=(p||'').toString().trim().toUpperCase();const m=p.match(/(
 function strengOf(code){const m=(code||'').toUpperCase().match(/(\d{3}[A-Z])/);return m?m[1]:'';}
 function popNum(p){const m=(p.label||p.pop||'').match(/(\d{1,4})\s*$/);return m?m[1].padStart(3,'0'):'';}
 function planOf(p){return p.zone+'_POP_'+popNum(p);}
+// Draait de tool binnen WYRE Centraal, dan wijst de link naar de tekening in de site zelf
+// (ingekleurd vanuit de Actuals in de database). inSite() = de site biedt die koppeling aan.
+function siteTek(){try{const w=window.parent;return (w&&w!==window&&typeof w.wyreTekUrl==='function')?w.wyreTekUrl:null;}catch(e){return null;}}
 function trackerUrl(p){
+  const st=siteTek();
+  if(st)return st(p.zone+'_POP_'+popNum(p).slice(0,3))||null;
   const base=p.zone+'_POP_'+popNum(p);
   if(TRACKERS[base])return 'https://claude.ai/artifact/'+TRACKERS[base];
   // samengevoegde sleutels (003103 etc.)
