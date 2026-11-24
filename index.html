@@ -643,7 +643,18 @@ async function start(u) {
   app.innerHTML = '<p class="muted">Toegang controleren…</p>';
   let t;
   try { t = await getDoc(doc(db, 'toegang', u.email.toLowerCase())); }
-  catch (e) { return noAccessView(u); }
+  catch (e) {
+    // Lezen geweigerd door de Firestore-regels is iets anders dan "niet op de lijst".
+    if (e?.code === 'permission-denied') {
+      app.innerHTML = `<div class="auth card fade"><h2>Toegang kan niet gecontroleerd worden</h2>
+        <p>Je bent correct ingelogd als <b>${esc(u.email)}</b>, maar de database weigert het lezen van je toegang${u.emailVerified ? '' : ' omdat je e-mailadres nog niet bevestigd is'}.</p>
+        <p class="muted">Een beheerder moet de Firestore-regels aanpassen zodat door de beheerder aangemaakte accounts hun eigen toegang mogen lezen.</p>
+        <button class="pri" id="opnieuw">Opnieuw proberen</button><button class="link" id="ander">Uitloggen</button></div>`;
+      $('#opnieuw').onclick = () => start(u); $('#ander').onclick = () => signOut(auth);
+      return;
+    }
+    return noAccessView(u);
+  }
   if (!t.exists()) return noAccessView(u);
   const data = t.data();
   // Door een beheerder aangemaakte gebruikers hoeven hun e-mail niet apart te bevestigen.
