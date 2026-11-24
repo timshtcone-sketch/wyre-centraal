@@ -1198,7 +1198,7 @@ function teamView() {
    <div id="tm"></div>
    <div class="card dp"><table class="stack"><thead><tr><th>Naam</th><th>E-mailadres</th><th>Rol</th><th></th></tr></thead><tbody>
    ${S.team.map(t => `<tr><td>${esc(t.naam || '')}${t.moetWijzigen ? ' <span class="chip" style="font-size:11px">nieuw wachtwoord</span>' : ''}${t.aangemaaktDoorBeheer ? ' <span class="chip" style="font-size:11px">aangemaakt door beheer</span>' : ''}</td><td>${esc(t.email)}</td><td>${t.rol === 'beheer' ? 'Beheerder' : 'Lid'}</td>
-     <td class="n">${t.email === S.user.email.toLowerCase() ? '<span class="muted small">jij</span>' : `<button class="link bad" data-del="${esc(t.email)}">Verwijderen</button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Laden…</td></tr>'}
+     <td class="n">${t.email === S.user.email.toLowerCase() ? '<span class="muted small">jij</span>' : `${t.aangemaaktDoorBeheer ? '' : `<button class="link" data-vrij="${esc(t.email)}">Toelaten zonder e-mailbevestiging</button> `}${t.moetWijzigen ? '' : `<button class="link" data-mw="${esc(t.email)}">Nieuw wachtwoord verplichten</button> `}<button class="link bad" data-del="${esc(t.email)}">Verwijderen</button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Laden…</td></tr>'}
    </tbody></table></div>
    <p class="muted small">Verwijderen haalt het e-mailadres van de toegangslijst; de persoon kan dan niet meer inloggen. Het Firebase-account zelf blijft bestaan en kan alleen in de Firebase-console volledig verwijderd worden.</p></div>`;
   const say = (t, k = '') => $('#tm').innerHTML = `<div class="msg ${k}">${t}</div>`;
@@ -1216,7 +1216,7 @@ function teamView() {
       $('#tf').reset();
     } catch (err) {
       if (err?.code === 'auth/email-already-in-use') {
-        try { await setDoc(doc(db, 'toegang', em), { naam, rol, toegevoegdDoor: S.user.email, op: serverTimestamp() }, { merge: true }); say(`Er bestond al een account voor ${esc(em)}. Toegang gegeven; het bestaande wachtwoord blijft gelden.`); $('#tf').reset(); }
+        try { await setDoc(doc(db, 'toegang', em), { naam, rol, aangemaaktDoorBeheer: true, toegevoegdDoor: S.user.email, op: serverTimestamp() }, { merge: true }); say(`Er bestond al een account voor ${esc(em)}. Toegang gegeven zonder e-mailbevestiging; het bestaande wachtwoord blijft gelden.`); $('#tf').reset(); }
         catch (e2) { say(fout(e2), 'bad'); }
       } else say(fout(err), 'bad');
     } finally { $('#tmaak').disabled = false; }
@@ -1227,6 +1227,12 @@ function teamView() {
     try { await setDoc(doc(db, 'toegang', em), { naam, rol, toegevoegdDoor: S.user.email, op: serverTimestamp() }, { merge: true }); say(`${esc(em)} toegevoegd. De gebruiker registreert zelf met dit e-mailadres en kiest een eigen wachtwoord.`); $('#tf').reset(); }
     catch (err) { say(fout(err), 'bad'); }
   };
+  app.querySelectorAll('[data-vrij]').forEach(b => b.onclick = async () => {
+    try { await setDoc(doc(db, 'toegang', b.dataset.vrij), { aangemaaktDoorBeheer: true }, { merge: true }); say(`${esc(b.dataset.vrij)} mag nu inloggen zonder e-mailbevestiging.`); } catch (err) { say(esc(fout(err)), 'bad'); }
+  });
+  app.querySelectorAll('[data-mw]').forEach(b => b.onclick = async () => {
+    try { await setDoc(doc(db, 'toegang', b.dataset.mw), { moetWijzigen: true }, { merge: true }); say(`${esc(b.dataset.mw)} moet bij de volgende login een nieuw wachtwoord kiezen.`); } catch (err) { say(esc(fout(err)), 'bad'); }
+  });
   app.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
     if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Zeker? Klik nog eens'; return; }
     try { await deleteDoc(doc(db, 'toegang', b.dataset.del)); } catch (err) { say(esc(fout(err)), 'bad'); }
