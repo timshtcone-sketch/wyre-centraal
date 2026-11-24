@@ -410,7 +410,8 @@ if (typeof module !== 'undefined') module.exports = WYRE;
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendEmailVerification, sendPasswordResetEmail, signOut } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+  sendEmailVerification, sendPasswordResetEmail, signOut, updatePassword, reauthenticateWithCredential,
+  EmailAuthProvider, setPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, onSnapshot, writeBatch, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
@@ -425,6 +426,12 @@ const firebaseConfig = {
 const fb = initializeApp(firebaseConfig);
 const auth = getAuth(fb); auth.languageCode = 'nl';
 const db = getFirestore(fb);
+// Tweede Firebase-app om nieuwe gebruikers aan te maken zonder de beheerder uit te loggen.
+// In-memory persistentie: deze app-instantie raakt de ingelogde sessie van de beheerder niet aan.
+const STANDAARD_PW = '0123456789';
+const fb2 = initializeApp(firebaseConfig, 'beheer-aanmaak');
+const auth2 = getAuth(fb2);
+setPersistence(auth2, inMemoryPersistence).catch(() => {});
 const ZONES = () => collection(db, 'wyre', 'v1', 'zones');
 const META = () => doc(db, 'wyre', 'v1', 'meta', 'import');
 const TARGETS = () => doc(db, 'wyre', 'v1', 'plan', 'targets');
@@ -518,6 +525,35 @@ function verifyView(u) {
   $('#ander').onclick = () => signOut(auth);
 }
 
+function wachtwoordWijzigenView(u) {
+  stopData(); $('#nav').classList.add('hidden'); $('#who').classList.remove('hidden'); $('#whoMail').textContent = S.naam;
+  app.innerHTML = `<form class="auth card fade" id="wf">
+    <h1>Kies je eigen wachtwoord</h1>
+    <p class="muted small">Je bent ingelogd met het standaardwachtwoord. Kies nu een eigen wachtwoord (minstens 8 tekens) voordat je verdergaat.</p>
+    <label>Huidig wachtwoord<input type="password" id="cw" autocomplete="current-password" required></label>
+    <label>Nieuw wachtwoord<input type="password" id="nw" autocomplete="new-password" minlength="8" required></label>
+    <label>Nieuw wachtwoord herhalen<input type="password" id="nw2" autocomplete="new-password" minlength="8" required></label>
+    <div id="wm"></div>
+    <button class="pri" type="submit">Wachtwoord opslaan</button>
+    <button type="button" class="link" id="wuit">Uitloggen</button>
+  </form>`;
+  const say = (t, k = '') => $('#wm').innerHTML = `<div class="msg ${k}">${esc(t)}</div>`;
+  $('#wuit').onclick = () => signOut(auth);
+  $('#wf').onsubmit = async e => {
+    e.preventDefault();
+    const cw = $('#cw').value, nw = $('#nw').value, nw2 = $('#nw2').value;
+    if (nw !== nw2) return say('De nieuwe wachtwoorden zijn niet gelijk.', 'bad');
+    if (nw === STANDAARD_PW) return say('Kies een ander wachtwoord dan het standaardwachtwoord.', 'bad');
+    try {
+      await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credential(u.email, cw));
+      await updatePassword(auth.currentUser, nw);
+      try { await setDoc(doc(db, 'toegang', u.email.toLowerCase()), { moetWijzigen: false }, { merge: true }); }
+      catch (e) { /* lukt het zetten niet door de regels, dan vangt de melding hieronder dat af */ }
+      start(auth.currentUser);
+    } catch (err) { say(fout(err), 'bad'); }
+  };
+}
+
 function noAccessView(u) {
   app.innerHTML = `<div class="auth card fade"><h2>Nog geen toegang</h2>
     <p>Je account <b>${esc(u.email)}</b> staat nog niet op de toegangslijst van WYRE Centraal.</p>
@@ -533,7 +569,12 @@ async function start(u) {
   try { t = await getDoc(doc(db, 'toegang', u.email.toLowerCase())); }
   catch (e) { return noAccessView(u); }
   if (!t.exists()) return noAccessView(u);
-  S.user = u; S.rol = t.data().rol || 'lid'; S.naam = t.data().naam || u.email;
+  const data = t.data();
+  // Door een beheerder aangemaakte gebruikers hoeven hun e-mail niet apart te bevestigen.
+  if (!u.emailVerified && !data.aangemaaktDoorBeheer) return verifyView(u);
+  S.user = u; S.rol = data.rol || 'lid'; S.naam = data.naam || u.email;
+  // Eerste login met het standaardwachtwoord: eerst een eigen wachtwoord kiezen.
+  if (data.moetWijzigen) return wachtwoordWijzigenView(u);
   $('#nav').classList.remove('hidden'); $('#who').classList.remove('hidden');
   $('#whoMail').textContent = S.naam;
   document.querySelectorAll('.beheer').forEach(a => a.classList.toggle('hidden', S.rol !== 'beheer'));
@@ -542,8 +583,7 @@ async function start(u) {
 
 onAuthStateChanged(auth, u => {
   if (!u) { S.user = null; return authView(); }
-  if (!u.emailVerified) return verifyView(u);
-  start(u);
+  start(u); // start() regelt e-mailbevestiging en de verplichte wachtwoordwijziging
 });
 $('#uit').onclick = () => signOut(auth);
 
@@ -873,21 +913,44 @@ function uitrolView() {
 /* ---------- Team ---------- */
 function teamView() {
   app.innerHTML = `<div class="fade"><h1>Team</h1>
-   <p class="muted">Wie hier staat, kan inloggen in WYRE Centraal zodra het e-mailadres bevestigd is. Beheerders kunnen ook importeren en het team beheren.</p>
-   <form class="card row" id="tf"><input type="email" id="te" placeholder="werk-e-mailadres" required style="flex:2 1 220px"><input id="tn" placeholder="naam" style="flex:1 1 160px">
-    <select id="tr"><option value="lid">Lid</option><option value="beheer">Beheerder</option></select><button class="pri">Toevoegen</button></form>
+   <p class="muted">Maak hier een gebruiker aan. Die krijgt het standaardwachtwoord <b>${STANDAARD_PW}</b> en moet dat bij de eerste keer inloggen zelf wijzigen. Beheerders kunnen ook importeren en het team beheren.</p>
+   <form class="card" id="tf">
+    <div class="row"><input type="email" id="te" placeholder="werk-e-mailadres" required style="flex:2 1 220px"><input id="tn" placeholder="naam" style="flex:1 1 160px">
+     <select id="tr"><option value="lid">Lid</option><option value="beheer">Beheerder</option></select></div>
+    <div class="row" style="margin-top:10px"><button class="pri" id="tmaak" type="submit">Gebruiker aanmaken (wachtwoord ${STANDAARD_PW})</button>
+     <button class="link" id="ttoegang" type="button">Alleen toegang geven (gebruiker registreert zelf)</button></div>
+   </form>
    <div id="tm"></div>
    <div class="card dp"><table class="stack"><thead><tr><th>Naam</th><th>E-mailadres</th><th>Rol</th><th></th></tr></thead><tbody>
-   ${S.team.map(t => `<tr><td>${esc(t.naam || '')}</td><td>${esc(t.email)}</td><td>${t.rol === 'beheer' ? 'Beheerder' : 'Lid'}</td>
+   ${S.team.map(t => `<tr><td>${esc(t.naam || '')}${t.moetWijzigen ? ' <span class="chip" style="font-size:11px">nieuw wachtwoord</span>' : ''}</td><td>${esc(t.email)}</td><td>${t.rol === 'beheer' ? 'Beheerder' : 'Lid'}</td>
      <td class="n">${t.email === S.user.email.toLowerCase() ? '<span class="muted small">jij</span>' : `<button class="link bad" data-del="${esc(t.email)}">Verwijderen</button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Laden…</td></tr>'}
    </tbody></table></div>
-   <p class="muted small">Een nieuw teamlid maakt zelf een account aan op deze pagina met hetzelfde e-mailadres en kiest daar zijn eigen wachtwoord.</p></div>`;
+   <p class="muted small">Verwijderen haalt het e-mailadres van de toegangslijst; de persoon kan dan niet meer inloggen. Het Firebase-account zelf blijft bestaan en kan alleen in de Firebase-console volledig verwijderd worden.</p></div>`;
   const say = (t, k = '') => $('#tm').innerHTML = `<div class="msg ${k}">${t}</div>`;
+  const velden = () => ({ em: $('#te').value.trim().toLowerCase(), naam: $('#tn').value.trim(), rol: $('#tr').value });
   $('#tf').onsubmit = async e => {
     e.preventDefault();
-    const em = $('#te').value.trim().toLowerCase();
-    try { await setDoc(doc(db, 'toegang', em), { naam: $('#tn').value.trim(), rol: $('#tr').value, toegevoegdDoor: S.user.email, op: serverTimestamp() }); say(`${esc(em)} toegevoegd.`); $('#tf').reset(); }
-    catch (err) { say(esc(fout(err)), 'bad'); }
+    const { em, naam, rol } = velden();
+    if (!em) return say('Vul een e-mailadres in.', 'bad');
+    $('#tmaak').disabled = true; say('Aanmaken…');
+    try {
+      await createUserWithEmailAndPassword(auth2, em, STANDAARD_PW);
+      await signOut(auth2);
+      await setDoc(doc(db, 'toegang', em), { naam, rol, aangemaaktDoorBeheer: true, moetWijzigen: true, toegevoegdDoor: S.user.email, op: serverTimestamp() });
+      say(`${esc(em)} aangemaakt. Standaardwachtwoord: ${STANDAARD_PW}. De gebruiker wijzigt dit bij de eerste login zelf.`);
+      $('#tf').reset();
+    } catch (err) {
+      if (err?.code === 'auth/email-already-in-use') {
+        try { await setDoc(doc(db, 'toegang', em), { naam, rol, toegevoegdDoor: S.user.email, op: serverTimestamp() }, { merge: true }); say(`Er bestond al een account voor ${esc(em)}. Toegang gegeven; het bestaande wachtwoord blijft gelden.`); $('#tf').reset(); }
+        catch (e2) { say(fout(e2), 'bad'); }
+      } else say(fout(err), 'bad');
+    } finally { $('#tmaak').disabled = false; }
+  };
+  $('#ttoegang').onclick = async () => {
+    const { em, naam, rol } = velden();
+    if (!em) return say('Vul een e-mailadres in.', 'bad');
+    try { await setDoc(doc(db, 'toegang', em), { naam, rol, toegevoegdDoor: S.user.email, op: serverTimestamp() }, { merge: true }); say(`${esc(em)} toegevoegd. De gebruiker registreert zelf met dit e-mailadres en kiest een eigen wachtwoord.`); $('#tf').reset(); }
+    catch (err) { say(fout(err), 'bad'); }
   };
   app.querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
     if (b.dataset.sure !== '1') { b.dataset.sure = '1'; b.textContent = 'Zeker? Klik nog eens'; return; }
