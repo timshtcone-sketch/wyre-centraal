@@ -484,7 +484,7 @@ if (typeof module !== 'undefined') module.exports = WYRE;
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
 import { getAuth, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   sendEmailVerification, sendPasswordResetEmail, signOut, updatePassword, reauthenticateWithCredential,
-  EmailAuthProvider, setPersistence, inMemoryPersistence } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+  EmailAuthProvider, setPersistence, inMemoryPersistence, getIdTokenResult } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, deleteDoc, collection, onSnapshot, writeBatch, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
@@ -639,20 +639,46 @@ function noAccessView(u) {
   $('#ander').onclick = () => signOut(auth);
 }
 
+// Toont alleen gemeten feiten als de database het lezen van de toegang weigert.
+async function diagnoseView(u, e) {
+  app.innerHTML = '<p class="muted">Diagnose uitvoeren…</p>';
+  const rij = [];
+  const zet = (k, v) => rij.push([k, v]);
+  zet('Firebase-project', firebaseConfig.projectId);
+  zet('Ingelogd als (account)', u.email);
+  let claims = null;
+  try { claims = (await getIdTokenResult(u, true)).claims; } catch (x) { zet('Token vernieuwen', 'mislukt: ' + (x?.code || x?.message || x)); }
+  if (claims) {
+    zet('E-mail in het token', String(claims.email));
+    zet('email_verified in het token', String(claims.email_verified));
+    zet('Aanmeldmethode', String(claims.firebase?.sign_in_provider || ''));
+  }
+  const pad = 'toegang/' + u.email.toLowerCase();
+  const probeer = async (label, ref) => {
+    try { const d = await getDoc(ref); zet(label, 'toegestaan' + (d.exists() ? ' (document bestaat)' : ' (document bestaat niet)')); return d; }
+    catch (x) { zet(label, 'geweigerd: ' + (x?.code || '') + ' — ' + (x?.message || '')); return null; }
+  };
+  zet('Eerste poging ' + pad, 'geweigerd: ' + (e?.code || '') + ' — ' + (e?.message || ''));
+  const t2 = await probeer('Lezen ' + pad + ' (na token vernieuwen)', doc(db, 'toegang', u.email.toLowerCase()));
+  await probeer('Lezen wyre/v1/meta/import', META());
+  if (t2 && t2.exists()) return start(u); // na vernieuwen lukt het wel: gewoon verdergaan
+  const tekst = rij.map(([k, v]) => k + ': ' + v).join('\n');
+  app.innerHTML = `<div class="card fade" style="max-width:720px;margin:6vh auto"><h2>De database weigert het lezen van je toegang</h2>
+    <p>Het inloggen is gelukt. Hieronder staat wat de site zojuist gemeten heeft. De weigering komt van de Firestore-beveiligingsregels van het project; die worden in de Firebase-console beheerd, niet in deze site.</p>
+    <div class="scroll"><table><tbody>${rij.map(([k, v]) => `<tr><td><b>${esc(k)}</b></td><td class="small">${esc(v)}</td></tr>`).join('')}</tbody></table></div>
+    <div class="row" style="margin-top:12px"><button class="pri" id="opnieuw">Opnieuw proberen</button><button id="kop">Kopieer diagnose</button><span class="sp"></span><button class="link" id="ander">Uitloggen</button></div><div id="dm"></div></div>`;
+  $('#opnieuw').onclick = () => start(u);
+  $('#ander').onclick = () => signOut(auth);
+  $('#kop').onclick = async () => { try { await navigator.clipboard.writeText(tekst); $('#dm').innerHTML = '<div class="msg">Gekopieerd.</div>'; } catch (x) { $('#dm').innerHTML = `<div class="msg"><pre class="small" style="white-space:pre-wrap;margin:0">${esc(tekst)}</pre></div>`; } };
+}
+
 async function start(u) {
   app.innerHTML = '<p class="muted">Toegang controleren…</p>';
   let t;
   try { t = await getDoc(doc(db, 'toegang', u.email.toLowerCase())); }
   catch (e) {
     // Lezen geweigerd door de Firestore-regels is iets anders dan "niet op de lijst".
-    if (e?.code === 'permission-denied') {
-      app.innerHTML = `<div class="auth card fade"><h2>Toegang kan niet gecontroleerd worden</h2>
-        <p>Je bent correct ingelogd als <b>${esc(u.email)}</b>, maar de database weigert het lezen van je toegang${u.emailVerified ? '' : ' omdat je e-mailadres nog niet bevestigd is'}.</p>
-        <p class="muted">Een beheerder moet de Firestore-regels aanpassen zodat door de beheerder aangemaakte accounts hun eigen toegang mogen lezen.</p>
-        <button class="pri" id="opnieuw">Opnieuw proberen</button><button class="link" id="ander">Uitloggen</button></div>`;
-      $('#opnieuw').onclick = () => start(u); $('#ander').onclick = () => signOut(auth);
-      return;
-    }
+    if (e?.code === 'permission-denied') return diagnoseView(u, e);
     return noAccessView(u);
   }
   if (!t.exists()) return noAccessView(u);
@@ -1171,7 +1197,7 @@ function teamView() {
    </form>
    <div id="tm"></div>
    <div class="card dp"><table class="stack"><thead><tr><th>Naam</th><th>E-mailadres</th><th>Rol</th><th></th></tr></thead><tbody>
-   ${S.team.map(t => `<tr><td>${esc(t.naam || '')}${t.moetWijzigen ? ' <span class="chip" style="font-size:11px">nieuw wachtwoord</span>' : ''}</td><td>${esc(t.email)}</td><td>${t.rol === 'beheer' ? 'Beheerder' : 'Lid'}</td>
+   ${S.team.map(t => `<tr><td>${esc(t.naam || '')}${t.moetWijzigen ? ' <span class="chip" style="font-size:11px">nieuw wachtwoord</span>' : ''}${t.aangemaaktDoorBeheer ? ' <span class="chip" style="font-size:11px">aangemaakt door beheer</span>' : ''}</td><td>${esc(t.email)}</td><td>${t.rol === 'beheer' ? 'Beheerder' : 'Lid'}</td>
      <td class="n">${t.email === S.user.email.toLowerCase() ? '<span class="muted small">jij</span>' : `<button class="link bad" data-del="${esc(t.email)}">Verwijderen</button>`}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">Laden…</td></tr>'}
    </tbody></table></div>
    <p class="muted small">Verwijderen haalt het e-mailadres van de toegangslijst; de persoon kan dan niet meer inloggen. Het Firebase-account zelf blijft bestaan en kan alleen in de Firebase-console volledig verwijderd worden.</p></div>`;
