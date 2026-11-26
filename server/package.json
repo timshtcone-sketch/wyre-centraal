@@ -1,0 +1,9 @@
+{
+  "name": "wyre-centraal-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Eigen server voor WYRE Centraal: inloggen, rechten en PostgreSQL-opslag",
+  "main": "app.js",
+  "scripts": { "start": "node app.js" },
+  "dependencies": { "pg": "^8.13.1" }
+}

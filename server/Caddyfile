@@ -1,0 +1,8 @@
+# SITE_ADDRESS is ":80" (alleen IP-adres, zonder https) of een domeinnaam (dan regelt Caddy zelf https).
+{$SITE_ADDRESS} {
+	encode gzip
+	request_body {
+		max_size 16MB
+	}
+	reverse_proxy app:3000
+}

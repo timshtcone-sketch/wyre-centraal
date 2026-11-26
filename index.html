@@ -856,7 +856,8 @@ const SOORTEN = {
   targets: 'HP-targets per maand',
   hp: 'HP per POC (Delivery planning)',
   eindejaar: 'Taken per zone uit WYRE eindejaar 2026',
-  tekeningen: 'Voortgangstekeningen (tracker-HTML)'
+  tekeningen: 'Voortgangstekeningen (tracker-HTML)',
+  backup: 'Volledige back-up van WYRE Centraal'
 };
 const naamNaarZone = n => { const m = String(n).toUpperCase().replace(/[-\s]/g, '').match(/^(.*?)(\d+)POP(\d+)$/); return m ? WYRE.zoneId(m[1] + '_' + m[2], m[3]) : null; };
 function leesSheets(wb) {
@@ -889,7 +890,34 @@ function importView() {
    </tbody></table></div>
    <div class="card dp"><div class="row"><input type="file" id="xf" accept=".xlsx,.xlsm,.xls,.json,.html,.htm" multiple><span class="sp"></span>${p ? '<button id="annul">Annuleren</button><button class="pri" id="save">Opslaan in database</button>' : ''}</div>
    <div id="im"></div></div>
-   ${p ? previewHtml(p) : ''}</div>`;
+   ${p ? previewHtml(p) : `<div class="card dp"><h3>Verhuizen of reservekopie</h3><p class="muted small">Download alles wat in deze database staat (teamleden, Actuals, planning, uitrol en tekeningen) als één bestand. Dat bestand kun je hierboven weer inladen, ook op een andere server. Wachtwoorden zitten er niet in.</p><button id="bk">Volledige back-up downloaden</button><div id="bm"></div></div>`}</div>`;
+  const bk = $('#bk');
+  if (bk) bk.onclick = async () => {
+    const zegB = (t, k = '') => $('#bm').innerHTML = `<div class="msg ${k}">${esc(t)}</div>`;
+    bk.disabled = true;
+    try {
+      const docs = [];
+      const zet = (pad, data) => { const o = {}; for (const [k, v] of Object.entries(data)) o[k] = (v && typeof v.toMillis === 'function') ? { __ts: v.toMillis() } : v; docs.push({ path: pad, data: o }); };
+      zegB('Teamleden en POP-zones ophalen…');
+      (await getDocs(collection(db, 'toegang'))).forEach(d => zet('toegang/' + d.id, d.data()));
+      (await getDocs(ZONES())).forEach(d => zet('wyre/v1/zones/' + d.id, d.data()));
+      zegB('Planning en uitrol ophalen…');
+      for (const pad of ['wyre/v1/meta/import', 'wyre/v1/meta/tekeningen', 'wyre/v1/plan/targets', 'wyre/v1/plan/hp', 'wyre/v1/plan/eindejaar', 'wyre/v1/uitrol/novdec']) {
+        const d = await getDoc(doc(db, ...pad.split('/'))); if (d.exists()) zet(pad, d.data());
+      }
+      const teks = (await getDocs(collection(db, 'wyre', 'v1', 'tekeningen'))).docs;
+      for (const [i, d] of teks.entries()) {
+        zegB(`Tekening ${i + 1} van ${teks.length} ophalen…`);
+        zet('wyre/v1/tekeningen/' + d.id, d.data());
+        (await getDocs(TEGELS(d.id))).forEach(t => zet(`wyre/v1/tekeningen/${d.id}/tegels/${t.id}`, t.data()));
+      }
+      const blob = new Blob([JSON.stringify({ soort: 'wyre-backup', versie: 1, gemaakt: new Date().toISOString(), docs })], { type: 'application/json' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+      a.download = `wyre-centraal-backup-${new Date().toISOString().slice(0, 10)}.json`; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 60000);
+      zegB(`Back-up gedownload: ${docs.length} onderdelen.`);
+    } catch (err) { zegB('Back-up mislukt: ' + fout(err), 'bad'); }
+    bk.disabled = false;
+  };
   const say = (t, k = '') => $('#im').innerHTML = `<div class="msg ${k}">${t}</div>`;
   $('#xf').onchange = async e => {
     const fs = [...e.target.files]; const f = fs[0]; if (!f) return;
@@ -913,6 +941,7 @@ function importView() {
       let res;
       if (/\.json$/i.test(f.name)) {
         const j = JSON.parse(await f.text());
+        if (j.soort === 'wyre-backup' && Array.isArray(j.docs)) { S.pending = { soort: 'backup', bestand: f.name, gemaakt: j.gemaakt || '', docs: j.docs }; importView(); return; }
         if (j.soort !== 'wyre-eindejaar' || !Array.isArray(j.pops)) return say('Dit JSON-bestand herken ik niet.', 'bad');
         res = { soort: 'eindejaar', bestand: f.name, stand: j.stand || '', pops: j.pops.map(p => ({ ...p, id: naamNaarZone(p.naam) })) };
       } else {
@@ -955,6 +984,12 @@ function importView() {
         }
         await setDoc(TEKIDX(), { zones: idx }, { merge: true });
         S.pending = null; location.hash = 'tekening/' + p.lijst[0].doc;
+      } else if (p.soort === 'backup') {
+        for (const [i, d] of p.docs.entries()) {
+          if (i % 5 === 0) say(`Terugzetten: ${i + 1} van ${p.docs.length}…`);
+          await setDoc(doc(db, ...d.path.split('/')), d.data);
+        }
+        S.pending = null; S.tekCache = {}; location.hash = 'overzicht';
       } else if (p.soort === 'eindejaar') {
         await setDoc(EINDEJAAR(), { ...wie, stand: p.stand, pops: p.pops });
         S.pending = null; location.hash = 'uitrol';
@@ -976,6 +1011,13 @@ function previewHtml(p) {
      </tbody></table></div>
      ${p.fouten.length ? `<div class="msg warn small">${p.fouten.map(esc).join('<br>')}</div>` : ''}
      <p class="muted small">Alleen de tekening wordt bewaard. De kleuren komen altijd uit de Actuals in de database. Een tekening die er al staat, wordt vervangen.</p></div>`;
+  }
+  if (p.soort === 'backup') {
+    const groep = pad => pad.startsWith('toegang/') ? 'Teamleden (toegangslijst)' : pad.includes('/zones/') ? 'POP-zones met Actuals' : pad.includes('/tegels/') ? 'Tekeningen: achtergrondtegels' : pad.includes('/tekeningen/') ? 'Tekeningen' : pad.includes('/uitrol/') ? 'Nov·Dec-uitrol' : 'Planning en instellingen';
+    const tel = {}; p.docs.forEach(d => { const g = groep(d.path); tel[g] = (tel[g] || 0) + 1; });
+    return `<div class="card dp"><h2>Controle: ${SOORTEN.backup}</h2><p>${esc(p.bestand)}${p.gemaakt ? ' · gemaakt op ' + esc(p.gemaakt.slice(0, 16).replace('T', ' ')) : ''} · <b>${p.docs.length}</b> onderdelen</p>
+     <table><tbody>${Object.entries(tel).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="n">${v}</td></tr>`).join('')}</tbody></table>
+     <div class="msg warn">Opslaan overschrijft de onderdelen die al in deze database staan met de versie uit de back-up. Onderdelen die niet in de back-up zitten, blijven staan.</div></div>`;
   }
   if (p.soort === 'eindejaar') {
     return `<div class="card dp"><h2>Controle: ${SOORTEN.eindejaar}</h2><p>${esc(p.bestand)} · stand ${esc(p.stand)} · <b>${p.pops.length}</b> POP-zones</p>

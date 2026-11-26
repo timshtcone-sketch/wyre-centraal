@@ -1,0 +1,6 @@
+.env
+backups/
+node_modules/
+public/index.html
+public/uitrol-template.html
+site/
