@@ -90,7 +90,7 @@ details summary{cursor:pointer;color:var(--acc);font-weight:500;min-height:32px}
   <div class="brand"><i><b style="background:var(--feed)"></b><b style="background:var(--prim)"></b><b style="background:var(--dist)"></b><b style="background:var(--las)"></b></i>WYRE Centraal</div>
   <nav id="nav" class="hidden">
     <a href="#overzicht" data-v="overzicht">Overzicht</a>
-    <a href="#uitrol" data-v="uitrol">Uitrol</a>
+    <a href="#uitrol" data-v="uitrol">Uitrol nov dec</a>
     <a href="#import" data-v="import" class="beheer">Import</a>
     <a href="#team" data-v="team" class="beheer">Team</a>
   </nav>
@@ -1067,54 +1067,79 @@ const MN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt'
 const MNL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 const maandNaam = (m, lang) => (lang ? MNL : MN)[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4);
 const volgende = m => { let [y, mm] = m.split('-').map(Number); mm++; if (mm > 12) { mm = 1; y++; } return `${y}-${String(mm).padStart(2, '0')}`; };
-// De volledige Nov·Dec-uitrol (exacte kopie van het artifact) draait in een iframe,
-// met de data uit de database (Firestore: wyre/v1/uitrol/novdec) in het sjabloon geïnjecteerd.
+// Uitrol nov·dec 2026, volledig uit de database: HP-targets per maand (plan/targets),
+// HP per POC (plan/hp) en de Actuals (zones). Gelast = POC-las met datum in de Actuals.
+// POC's met een M (bv. 015AM01) krijgen geen POC-las; die staan apart vermeld.
+const UM = ['2026-11', '2026-12'];
+function uitrolRij(t) {
+  const z = S.zones[t.id];
+  const lijst = S.hp?.zones?.[t.id] || null;
+  const gelast = {}, zonderDatum = new Set();
+  for (const r of (z?.rijen || [])) if (r.s === 'poc-las' && r.p) {
+    if (!r.d) { zonderDatum.add(r.p); continue; }
+    if (!(r.p in gelast) || r.d > gelast[r.p]) gelast[r.p] = r.d;
+  }
+  const o = { t, z, lijst, tNov: t.m?.[UM[0]] || 0, tDec: t.m?.[UM[1]] || 0, hpLijst: 0, hpGelast: 0, hpNov: 0, hpDec: 0, hpOpen: 0, hpM: 0, open: [], mPocs: [], zonderDatum: [...zonderDatum].filter(p => !(p in gelast)) };
+  for (const [p, hp] of Object.entries(lijst || {})) {
+    o.hpLijst += hp;
+    if (/M\d\d$/.test(p)) { o.hpM += hp; o.mPocs.push({ p, hp }); continue; }
+    if (p in gelast) {
+      o.hpGelast += hp; const m = gelast[p].slice(0, 7);
+      if (m === UM[0]) o.hpNov += hp; if (m === UM[1]) o.hpDec += hp;
+    } else { o.hpOpen += hp; o.open.push({ p, hp }); }
+  }
+  o.open.sort((a, b) => a.p.localeCompare(b.p)); o.mPocs.sort((a, b) => a.p.localeCompare(b.p));
+  return o;
+}
 function uitrolView() {
-  const beheer = S.rol === 'beheer';
-  if (S.uitrolData === undefined) { app.innerHTML = '<p class="muted">Uitrol laden…</p>'; return; }
-  if (!S.uitrolData) {
-    app.innerHTML = `<div class="fade"><h1>Uitrol</h1>
-      <div class="msg">De Nov·Dec-uitrol staat nog niet in de database.${beheer ? '' : ' Een beheerder moet die eenmalig laden.'}</div>
-      ${beheer ? `<div class="card dp"><p>Laad de volledige Nov·Dec-uitrol in de database — dezelfde data en interface als het artifact. Kies daarvoor het bestand <i>novdec-seed.json</i>. Dit hoeft maar één keer; daarna zien alle teamleden dezelfde uitrol.</p>
-        <button class="pri" id="seed">Nov·Dec-uitrol in database laden</button><div id="sm"></div></div>` : ''}</div>`;
-    if (beheer) {
-      const say = (t, k = '') => $('#sm').innerHTML = `<div class="msg ${k}">${esc(t)}</div>`;
-      $('#seed').onclick = async () => {
-        $('#seed').disabled = true; say('Laden…');
-        try {
-          const j = await new Promise((ok, nok) => { // het bestand staat niet (meer) openbaar online: kies het zelf
-            const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json';
-            inp.onchange = async () => { try { ok(JSON.parse(await inp.files[0].text())); } catch (e) { nok(new Error('Dit is geen geldig novdec-seed.json-bestand')); } };
-            inp.click(); setTimeout(() => { if (!inp.files?.length) { $('#seed').disabled = false; say('Kies het bestand novdec-seed.json om de uitrol te laden.'); } }, 60000);
-          });
-          if (!j || !j.data || !j.act) throw new Error('Dit is geen novdec-seed.json-bestand');
-          await setDoc(UITROL(), {
-            data: JSON.stringify(j.data), act: JSON.stringify(j.act),
-            stat: JSON.stringify(j.stat), topo: JSON.stringify(j.topo),
-            op: serverTimestamp(), door: S.naam, bron: 'Nov · Dec Uitrol'
-          });
-          // De onSnapshot toont de uitrol daarna automatisch.
-        } catch (err) { $('#seed').disabled = false; say('Laden mislukt: ' + esc(fout(err)), 'bad'); }
-      };
-    }
+  if (!S.loaded) { app.innerHTML = '<p class="muted">Gegevens laden…</p>'; return; }
+  const ontbreekt = [!S.targets && 'de HP-targets per maand', !S.hp && 'de HP per POC', !Object.keys(S.zones).length && 'de Actuals'].filter(Boolean);
+  if (ontbreekt.length) {
+    app.innerHTML = `<div class="fade"><h1>Uitrol nov · dec 2026</h1><div class="msg">Nog niet in de database: ${ontbreekt.join(', ')}. ${S.rol === 'beheer' ? '<a href="#import">Laad ze in via Import.</a>' : 'Een beheerder moet die eerst inladen.'}</div></div>`;
     return;
   }
-  // Data aanwezig → bouw de iframe één keer per versie (anders herlaadt de tool bij elke update).
-  const d = S.uitrolData;
-  const ver = (d.op && d.op.seconds) ? String(d.op.seconds) : '1';
-  if (S.uitrolVer === ver && document.getElementById('uitrolFrame')) return;
-  S.uitrolVer = ver;
-  app.innerHTML = '<p class="muted">Uitroltool laden…</p>';
-  fetch('uitrol-template.html?v=' + encodeURIComponent(ver)).then(r => { if (!r.ok) throw new Error('sjabloon niet gevonden'); return r.text(); }).then(tpl => {
-    if (view() !== 'uitrol') return;
-    const html = tpl
-      .replace('/*__DATA__*/', () => d.data)
-      .replace('/*__ACT__*/', () => d.act)
-      .replace('/*__STAT__*/', () => d.stat)
-      .replace('/*__TOPO__*/', () => d.topo);
-    app.innerHTML = '<iframe id="uitrolFrame" title="Nov · Dec Uitrol" style="width:100%;height:calc(100vh - 150px);min-height:600px;border:1px solid var(--line);border-radius:12px;background:var(--card)"></iframe>';
-    document.getElementById('uitrolFrame').srcdoc = html;
-  }).catch(err => { app.innerHTML = `<div class="msg bad">Kon de uitroltool niet laden: ${esc(fout(err))}</div>`; });
+  const rijen = (S.targets.pops || []).filter(t => (t.m?.[UM[0]] || 0) + (t.m?.[UM[1]] || 0) > 0).map(uitrolRij);
+  const hubs = [...new Set(rijen.map(r => r.t.hub))].sort();
+  const dt = x => x?.op?.toDate ? x.op.toDate().toLocaleString('nl-BE', { dateStyle: 'short', timeStyle: 'short' }) : '';
+  app.innerHTML = `<div class="fade">
+   <h1>Uitrol nov · dec 2026</h1>
+   <p class="muted small">Uit de database · HP-targets: ${esc(dt(S.targets))} · HP per POC: ${esc(dt(S.hp))} · Actuals: ${esc(S.meta?.bestand || '')} ${esc(dt(S.meta))}</p>
+   <div class="kpis" id="uk"></div>
+   <div class="card">
+    <div class="row"><select id="uh" aria-label="HUB/MRO-zone"><option value="">Alle HUB/MRO-zones</option>${hubs.map(h => `<option ${h === S.hub ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select></div>
+    <div class="legend"><span><b style="background:var(--feed)"></b>HP gelast</span><span><b style="background:var(--line)"></b>HP nog te lassen</span><span><b style="background:var(--prim)"></b>M-POC's (geen POC-las)</span></div>
+    <div class="scroll"><table class="stack" id="ut"><thead><tr><th>POP-zone</th><th class="n">Target nov</th><th class="n">Target dec</th><th class="n">HP gelast nov</th><th class="n">HP gelast dec</th><th>Voortgang HP-lijst</th><th class="n">HP nog te lassen</th><th class="n">POC's open</th><th>Opmerking</th></tr></thead><tbody></tbody></table></div>
+    <p class="small muted">Target = HP-planning (blad "Detail per POP"). Gelast = POC-las met datum in de Actuals, maal het aantal HP uit de HP-lijst. POC's met een M krijgen geen POC-las: die tellen niet mee als "nog te lassen" maar staan apart. Klik op een rij voor de open POC's.</p>
+   </div></div>`;
+  const draw = () => {
+    const sel = rijen.filter(r => !S.hub || r.t.hub === S.hub);
+    const som = k => sel.reduce((a, r) => a + r[k], 0);
+    const kpi = (v, l) => `<div class="kpi"><div class="v">${nf.format(v)}</div><div class="l">${l}</div></div>`;
+    $('#uk').innerHTML = kpi(sel.length, 'POP-zones met target in nov of dec') + kpi(som('tNov'), 'HP-target november') + kpi(som('tDec'), 'HP-target december')
+      + kpi(som('hpNov') + som('hpDec'), 'HP gelast in nov + dec') + kpi(som('hpOpen'), 'HP nog te lassen');
+    const w = (x, n) => n ? (x / n * 100).toFixed(1) + '%' : '0%';
+    $('#ut tbody').innerHTML = sel.map((r, i) => {
+      const geenLijst = !r.lijst;
+      return `<tr class="click" data-i="${rijen.indexOf(r)}">
+       <td data-l="POP-zone"><b>${esc(r.t.label)}</b>${r.z ? '' : '<br><span class="small late">geen Actuals</span>'}</td>
+       <td class="n" data-l="Target nov">${r.tNov ? nf.format(r.tNov) : ''}</td>
+       <td class="n" data-l="Target dec">${r.tDec ? nf.format(r.tDec) : ''}</td>
+       <td class="n" data-l="HP gelast nov">${r.hpNov ? nf.format(r.hpNov) : ''}</td>
+       <td class="n" data-l="HP gelast dec">${r.hpDec ? nf.format(r.hpDec) : ''}</td>
+       <td data-l="Voortgang">${geenLijst ? '<span class="small late">geen HP-lijst</span>' : `<div class="row" style="gap:8px"><div class="bar" style="flex:1"><span style="width:${w(r.hpGelast, r.hpLijst)};background:var(--feed)"></span><span style="width:${w(r.hpM, r.hpLijst)};background:var(--prim)"></span></div><span class="n small">${nf.format(r.hpGelast)} / ${nf.format(r.hpLijst)}</span></div>`}</td>
+       <td class="n" data-l="HP nog te lassen">${geenLijst ? '' : nf.format(r.hpOpen)}</td>
+       <td class="n" data-l="POC's open">${geenLijst ? '' : r.open.length}</td>
+       <td class="small" data-l="Opmerking">${esc(r.t.opm || '')}</td></tr>
+       <tr class="hidden" id="ud${rijen.indexOf(r)}"><td colspan="9" class="small">
+        ${r.open.length ? `<b>Nog te lassen (${r.open.length}):</b> ${r.open.map(o => `${esc(o.p)} (${o.hp})`).join(', ')}` : 'Geen open POC\'s in de HP-lijst.'}
+        ${r.mPocs.length ? `<br><b>M-POC's, geen POC-las (${r.mPocs.length}, ${nf.format(r.hpM)} HP):</b> ${r.mPocs.map(o => `${esc(o.p)} (${o.hp})`).join(', ')}` : ''}
+        ${r.zonderDatum.length ? `<br><b>POC-las in Actuals zonder datum:</b> ${r.zonderDatum.map(esc).join(', ')}` : ''}
+        ${r.z ? `<br><a href="#zone/${esc(r.t.id)}">Naar de POP-zone</a>` : ''}</td></tr>`;
+    }).join('') || '<tr><td colspan="9" class="muted">Geen POP-zones met een target in november of december.</td></tr>';
+    app.querySelectorAll('#ut tr[data-i]').forEach(tr => tr.onclick = () => $('#ud' + tr.dataset.i).classList.toggle('hidden'));
+  };
+  $('#uh').onchange = e => { S.hub = e.target.value; draw(); };
+  draw();
 }
 
 /* ---------- Tekening ---------- */
