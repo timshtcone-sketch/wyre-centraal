@@ -38,6 +38,35 @@ nav a.on{background:color-mix(in srgb,var(--acc) 14%,transparent);color:var(--ac
 .kv{display:grid;grid-template-columns:1fr auto;gap:2px 12px;font-size:13.5px;margin:10px 0}
 .kv b{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
 .late{color:var(--bad)}.ok{color:var(--feed)}
+/* Excel-lijsten */
+.xlbar{display:flex;gap:12px;align-items:center;margin-bottom:6px;min-height:28px}
+.xlwrap{overflow:auto;max-height:70vh;border:1px solid var(--line)}
+table.xl{border-collapse:collapse;font:13px/1.35 Calibri,'Segoe UI',Inter,sans-serif;width:max-content;min-width:100%;font-variant-numeric:tabular-nums}
+table.xl th,table.xl td{border:1px solid color-mix(in srgb,var(--line) 85%,var(--ink) 15%);padding:3px 6px;white-space:nowrap;text-align:left}
+table.xl td.n,table.xl th.n{text-align:right}
+table.xl thead th{position:sticky;top:0;z-index:2;background:color-mix(in srgb,var(--card) 88%,var(--ink) 12%);font-weight:600;vertical-align:bottom}
+table.xl tfoot td{position:sticky;bottom:0;background:color-mix(in srgb,var(--card) 88%,var(--ink) 12%);font-weight:600}
+table.xl tbody tr:nth-child(even) td{background:color-mix(in srgb,var(--card) 96%,var(--ink) 4%)}
+table.xl tbody tr td{background:var(--card)}
+table.xl tbody tr:hover td{background:color-mix(in srgb,var(--acc) 8%,var(--card))}
+table.xl tbody tr.sel td{background:color-mix(in srgb,var(--acc) 18%,var(--card))}
+table.xl .xlnr{background:color-mix(in srgb,var(--card) 88%,var(--ink) 12%)!important;color:var(--mute);text-align:right;width:3em;position:sticky;left:0;z-index:1}
+table.xl thead .xlnr{z-index:3}
+.xlh{display:flex;align-items:flex-end;gap:6px;justify-content:space-between}
+.xlf{min-height:0;height:20px;min-width:22px;padding:0 3px;font-size:11px;line-height:1;border:1px solid color-mix(in srgb,var(--line) 70%,var(--ink) 30%);border-radius:2px;background:var(--card);color:var(--ink);cursor:pointer}
+.xlf.on{background:color-mix(in srgb,var(--acc) 25%,var(--card));border-color:var(--acc)}
+.xlmenu{position:absolute;z-index:50;background:var(--card);border:1px solid var(--line);box-shadow:0 6px 24px rgba(0,0,0,.18);padding:6px;width:260px;font-size:13px;border-radius:4px}
+.xlmenu .xlmi{display:block;width:100%;text-align:left;border:0;background:none;padding:5px 8px;min-height:0;cursor:pointer;color:var(--ink)}
+.xlmenu .xlmi:hover:not([disabled]){background:color-mix(in srgb,var(--acc) 12%,transparent)}
+.xlmenu .xlmi[disabled]{color:var(--mute);cursor:default}
+.xlmenu hr{border:0;border-top:1px solid var(--line);margin:4px 0}
+.xlmenu .xlq{width:100%;margin:4px 0;min-height:30px;padding:4px 8px;font-size:13px;border-radius:3px}
+.xlmenu input[type=checkbox]{min-height:0;padding:0;margin:0;width:14px;height:14px}
+.xlmenu button{font-size:13px}
+.xlvals{max-height:220px;overflow:auto;border:1px solid var(--line);padding:4px 6px}
+.xlvals label{display:flex;gap:6px;align-items:center;padding:1px 0;cursor:pointer;white-space:nowrap}
+.xlvals label.xlweg{color:var(--mute)}
+.xlmenu .xlok,.xlmenu .xlno{min-height:30px;padding:0 14px}
 main{max-width:1240px;margin:0 auto;padding:clamp(18px,3vw,36px) max(4vw,14px) 60px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px}
 .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:18px 0}
@@ -91,6 +120,7 @@ details summary{cursor:pointer;color:var(--acc);font-weight:500;min-height:32px}
   <nav id="nav" class="hidden">
     <a href="#overzicht" data-v="overzicht">Overzicht</a>
     <a href="#uitrol" data-v="uitrol">Uitrol nov dec</a>
+    <a href="#uitroltotaal" data-v="uitroltotaal">Uitrol totaal</a>
     <a href="#import" data-v="import" class="beheer">Import</a>
     <a href="#team" data-v="team" class="beheer">Team</a>
   </nav>
@@ -724,9 +754,10 @@ const view = () => (location.hash.slice(1).split('/')[0] || 'overzicht');
 function route() {
   if (!S.user) return;
   const v = view();
+  document.querySelectorAll('.xlmenu').forEach(m => m.remove());
   document.querySelectorAll('#nav a').forEach(a => a.classList.toggle('on', a.dataset.v === v || ((v === 'zone' || v === 'tekening') && a.dataset.v === 'overzicht')));
   if ((v === 'import' || v === 'team') && S.rol !== 'beheer') { location.hash = 'overzicht'; return; }
-  ({ overzicht: overzichtView, uitrol: uitrolView, zone: zoneView, tekening: tekeningView, import: importView, team: teamView }[v] || overzichtView)();
+  ({ overzicht: overzichtView, uitrol: uitrolView, uitroltotaal: uitrolTotaalView, zone: zoneView, tekening: tekeningView, import: importView, team: teamView }[v] || overzichtView)();
 }
 let rt; function rerender() { if (view() === 'import' && S.pending) return; clearTimeout(rt); rt = setTimeout(route, 30); }
 addEventListener('hashchange', () => { route(); scrollTo(0, 0); });
@@ -1067,79 +1098,172 @@ const MN = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt'
 const MNL = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
 const maandNaam = (m, lang) => (lang ? MNL : MN)[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4);
 const volgende = m => { let [y, mm] = m.split('-').map(Number); mm++; if (mm > 12) { mm = 1; y++; } return `${y}-${String(mm).padStart(2, '0')}`; };
-// Uitrol nov·dec 2026, volledig uit de database: HP-targets per maand (plan/targets),
-// HP per POC (plan/hp) en de Actuals (zones). Gelast = POC-las met datum in de Actuals.
-// POC's met een M (bv. 015AM01) krijgen geen POC-las; die staan apart vermeld.
+/* ---------- Excel-lijst: rasterlijst met filter en sortering per kolom (zoals Excel-autofilter) ---------- */
+// cols: [{ k: veld, l: kopje, t: 'n' (getal) | 't' (tekst) | 'd' (datum jjjj-mm-dd) | 'p' (procent 0-100), som: true → totaal onderaan, w: breedte }]
+const XL = {};
+function xlLijst(host, id, cols, rows, opt = {}) {
+  const st = XL[id] || (XL[id] = { flt: {}, srt: null });
+  const leeg = v => v === null || v === undefined || v === '';
+  const toon = (c, v) => leeg(v) ? '' : c.t === 'n' ? nf.format(v) : c.t === 'p' ? nf.format(v) + '%' : c.t === 'd' ? fmtD(v) : String(v);
+  const fv = (c, v) => leeg(v) ? '(Leeg)' : toon(c, v);
+  const cmp = (c, a, b) => leeg(a) && leeg(b) ? 0 : leeg(a) ? 1 : leeg(b) ? -1 : (c.t === 'n' || c.t === 'p') ? a - b : String(a).localeCompare(String(b), 'nl', { numeric: true });
+  const gefilterd = (behalve) => rows.filter(r => cols.every(c => c.k === behalve || !st.flt[c.k] || st.flt[c.k].has(fv(c, r[c.k]))));
+  const teken = () => {
+    let rs = gefilterd();
+    if (st.srt) { const c = cols.find(x => x.k === st.srt.k); if (c) rs = rs.slice().sort((a, b) => cmp(c, a[c.k], b[c.k]) * st.srt.dir); }
+    const actief = cols.filter(c => st.flt[c.k]).length;
+    host.innerHTML = `<div class="xlbar"><span class="small muted">${nf.format(rs.length)} van ${nf.format(rows.length)} rijen${actief ? ` · ${actief} filter${actief > 1 ? 's' : ''} actief` : ''}</span>${actief || st.srt ? '<button class="link xlwis">Filters en sortering wissen</button>' : ''}</div>
+     <div class="xlwrap"><table class="xl"><thead><tr><th class="xlnr"></th>${cols.map(c => `<th style="${c.w ? 'min-width:' + c.w + 'px' : ''}" class="${c.t === 'n' || c.t === 'p' ? 'n' : ''}"><div class="xlh"><span>${esc(c.l)}</span><button type="button" class="xlf${st.flt[c.k] ? ' on' : ''}" data-k="${esc(c.k)}" aria-label="Filter ${esc(c.l)}">${st.srt?.k === c.k ? (st.srt.dir > 0 ? '▲' : '▼') : ''}${st.flt[c.k] ? '⧩' : '⏷'}</button></div></th>`).join('')}</tr></thead>
+     <tbody>${rs.map((r, i) => `<tr data-i="${rows.indexOf(r)}" class="${opt.onRij ? 'click' : ''}${opt.sel === rows.indexOf(r) ? ' sel' : ''}"><td class="xlnr">${i + 1}</td>${cols.map(c => `<td class="${c.t === 'n' || c.t === 'p' ? 'n' : ''}${c.cls ? ' ' + c.cls(r) : ''}">${c.html ? c.html(r) : esc(toon(c, r[c.k]))}</td>`).join('')}</tr>`).join('') || `<tr><td class="xlnr"></td><td colspan="${cols.length}" class="muted">Geen rijen voor deze filters.</td></tr>`}</tbody>
+     <tfoot><tr><td class="xlnr"></td>${cols.map((c, j) => `<td class="${c.t === 'n' ? 'n' : ''}">${c.som ? nf.format(rs.reduce((a, r) => a + (+r[c.k] || 0), 0)) : j === 0 ? 'Totaal' : ''}</td>`).join('')}</tr></tfoot></table></div>`;
+    host.querySelector('.xlwis')?.addEventListener('click', () => { st.flt = {}; st.srt = null; teken(); });
+    host.querySelectorAll('.xlf').forEach(b => b.onclick = e => { e.stopPropagation(); menu(b); });
+    if (opt.onRij) host.querySelectorAll('tbody tr[data-i]').forEach(tr => tr.onclick = () => { opt.sel = +tr.dataset.i; host.querySelectorAll('tbody tr.sel').forEach(x => x.classList.remove('sel')); tr.classList.add('sel'); opt.onRij(rows[+tr.dataset.i]); });
+    opt.onFilter?.(rs);
+  };
+  const menu = (knop) => {
+    document.querySelectorAll('.xlmenu').forEach(m => m.remove());
+    const c = cols.find(x => x.k === knop.dataset.k);
+    const basis = gefilterd(c.k);
+    const ws = [...new Map(rows.map(r => [fv(c, r[c.k]), r[c.k]])).entries()].sort((a, b) => cmp(c, a[1], b[1]));
+    const zichtbaar = new Set(basis.map(r => fv(c, r[c.k])));
+    const gekozen = new Set(st.flt[c.k] || ws.map(w => w[0]));
+    const m = document.createElement('div'); m.className = 'xlmenu';
+    const az = c.t === 'n' || c.t === 'p' ? ['Sorteren van klein naar groot', 'Sorteren van groot naar klein'] : c.t === 'd' ? ['Sorteren van oud naar nieuw', 'Sorteren van nieuw naar oud'] : ['Sorteren van A naar Z', 'Sorteren van Z naar A'];
+    m.innerHTML = `<button class="xlmi" data-s="1">${az[0]}</button><button class="xlmi" data-s="-1">${az[1]}</button>
+      <button class="xlmi" data-w="1" ${st.flt[c.k] ? '' : 'disabled'}>Filter wissen uit "${esc(c.l)}"</button><hr>
+      <input type="search" placeholder="Zoeken" class="xlq">
+      <div class="xlvals"><label><input type="checkbox" class="xlall"> (Alles selecteren)</label>${ws.map(([t], i) => `<label class="${zichtbaar.has(t) ? '' : 'xlweg'}"><input type="checkbox" data-v="${i}" ${gekozen.has(t) ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</div>
+      <div class="row" style="justify-content:flex-end;gap:6px;margin-top:8px"><button class="pri xlok">OK</button><button class="xlno">Annuleren</button></div>`;
+    document.body.appendChild(m);
+    const rb = knop.getBoundingClientRect();
+    m.style.top = (rb.bottom + scrollY + 4) + 'px';
+    m.style.left = Math.max(8, Math.min(rb.right + scrollX - m.offsetWidth, scrollX + innerWidth - m.offsetWidth - 8)) + 'px';
+    const boxes = [...m.querySelectorAll('input[data-v]')];
+    const all = m.querySelector('.xlall');
+    const zetAll = () => { const z = boxes.filter(b => b.parentElement.style.display !== 'none'); all.checked = z.length && z.every(b => b.checked); all.indeterminate = !all.checked && z.some(b => b.checked); };
+    zetAll();
+    all.onchange = () => boxes.filter(b => b.parentElement.style.display !== 'none').forEach(b => b.checked = all.checked);
+    boxes.forEach(b => b.onchange = zetAll);
+    m.querySelector('.xlq').oninput = e => { const q = e.target.value.toLowerCase(); boxes.forEach(b => { const tr = ws[b.dataset.v][0].toLowerCase(); b.parentElement.style.display = !q || tr.includes(q) ? '' : 'none'; if (q) b.checked = tr.includes(q); }); zetAll(); };
+    const sluit = () => { m.remove(); removeEventListener('mousedown', buiten, true); };
+    const buiten = e => { if (!m.contains(e.target)) sluit(); };
+    setTimeout(() => addEventListener('mousedown', buiten, true));
+    m.querySelectorAll('.xlmi[data-s]').forEach(b => b.onclick = () => { st.srt = { k: c.k, dir: +b.dataset.s }; sluit(); teken(); });
+    m.querySelector('.xlmi[data-w]').onclick = () => { delete st.flt[c.k]; sluit(); teken(); };
+    m.querySelector('.xlno').onclick = sluit;
+    m.querySelector('.xlok').onclick = () => { const s = new Set(boxes.filter(b => b.checked).map(b => ws[b.dataset.v][0])); if (s.size === ws.length) delete st.flt[c.k]; else st.flt[c.k] = s; sluit(); teken(); };
+    m.querySelector('.xlq').focus();
+  };
+  teken();
+}
+
+/* ---------- Uitrol (nov·dec en totaal), volledig uit de database ---------- */
+// Bronnen: HP-targets per maand (plan/targets), HP per POC (plan/hp) en de Actuals (zones).
+// Gelast = POC-las met datum in de Actuals, maal het aantal HP uit de HP-lijst.
+// POC's met een M (bv. 015AM01) krijgen geen POC-las; die tellen niet als "nog te lassen" maar staan apart.
 const UM = ['2026-11', '2026-12'];
-function uitrolRij(t) {
-  const z = S.zones[t.id];
-  const lijst = S.hp?.zones?.[t.id] || null;
+function uitrolRij(id) {
+  const t = (S.targets?.pops || []).find(x => x.id === id);
+  const z = S.zones[id];
+  const pz = WYRE.popNaamToZone(id) || {};
+  const lijst = S.hp?.zones?.[id] || null;
   const gelast = {}, zonderDatum = new Set();
   for (const r of (z?.rijen || [])) if (r.s === 'poc-las' && r.p) {
     if (!r.d) { zonderDatum.add(r.p); continue; }
     if (!(r.p in gelast) || r.d > gelast[r.p]) gelast[r.p] = r.d;
   }
-  const o = { t, z, lijst, tNov: t.m?.[UM[0]] || 0, tDec: t.m?.[UM[1]] || 0, hpLijst: 0, hpGelast: 0, hpNov: 0, hpDec: 0, hpOpen: 0, hpM: 0, open: [], mPocs: [], zonderDatum: [...zonderDatum].filter(p => !(p in gelast)) };
-  for (const [p, hp] of Object.entries(lijst || {})) {
-    o.hpLijst += hp;
-    if (/M\d\d$/.test(p)) { o.hpM += hp; o.mPocs.push({ p, hp }); continue; }
-    if (p in gelast) {
-      o.hpGelast += hp; const m = gelast[p].slice(0, 7);
-      if (m === UM[0]) o.hpNov += hp; if (m === UM[1]) o.hpDec += hp;
-    } else { o.hpOpen += hp; o.open.push({ p, hp }); }
+  const m = t?.m || {};
+  const tJaar = j => Object.entries(m).filter(([k]) => k.slice(0, 4) === j).reduce((a, [, v]) => a + v, 0);
+  const o = { id, hub: t?.hub || z?.hub || pz.hub || '', zone: t?.label || z?.label || (pz.hub ? WYRE.zoneLabel(pz.hub, pz.pop) : id), opm: t?.opm || '',
+    tNov: m[UM[0]] || 0, tDec: m[UM[1]] || 0, tHp: t?.hp || null, t2025: tJaar('2025'), t2026: tJaar('2026'),
+    tLater: Object.entries(m).filter(([k]) => k.slice(0, 4) > '2026').reduce((a, [, v]) => a + v, 0),
+    planning: Object.keys(m).filter(k => k.length === 7 && k >= UM[0]).sort().map(k => maandNaam(k)).join(', '),
+    actuals: z ? 'ja' : 'nee', heeftLijst: !!lijst,
+    hpLijst: null, hpGelast: null, hpNov: null, hpDec: null, hpOpen: null, hpM: null, pocs: null, pocGelast: null, pocOpen: null, pocM: null, pct: null,
+    laatste: Object.values(gelast).sort().pop() || '', open: [], mPocs: [], zonderDatum: [...zonderDatum].filter(p => !(p in gelast)) };
+  if (lijst) {
+    Object.assign(o, { hpLijst: 0, hpGelast: 0, hpNov: 0, hpDec: 0, hpOpen: 0, hpM: 0, pocs: 0, pocGelast: 0 });
+    for (const [p, hp] of Object.entries(lijst)) {
+      o.hpLijst += hp; o.pocs++;
+      if (/M\d\d$/.test(p)) { o.hpM += hp; o.mPocs.push({ p, hp }); continue; }
+      if (p in gelast) {
+        o.hpGelast += hp; o.pocGelast++; const mm = gelast[p].slice(0, 7);
+        if (mm === UM[0]) o.hpNov += hp; if (mm === UM[1]) o.hpDec += hp;
+      } else { o.hpOpen += hp; o.open.push({ p, hp }); }
+    }
+    o.pocOpen = o.open.length; o.pocM = o.mPocs.length;
+    o.pct = o.hpLijst - o.hpM > 0 ? Math.round(o.hpGelast / (o.hpLijst - o.hpM) * 1000) / 10 : null;
+    o.open.sort((a, b) => a.p.localeCompare(b.p)); o.mPocs.sort((a, b) => a.p.localeCompare(b.p));
   }
-  o.open.sort((a, b) => a.p.localeCompare(b.p)); o.mPocs.sort((a, b) => a.p.localeCompare(b.p));
   return o;
 }
-function uitrolView() {
-  if (!S.loaded) { app.innerHTML = '<p class="muted">Gegevens laden…</p>'; return; }
+function uitrolDetail(r) {
+  if (!r.heeftLijst) return `<div class="card"><h3>${esc(r.zone)}</h3><p class="muted">Voor deze POP-zone staat er geen HP-lijst in de database.</p></div>`;
+  return `<div class="card"><h3>${esc(r.zone)}</h3>
+    <p class="small"><b>Nog te lassen (${r.open.length} POC's, ${nf.format(r.hpOpen)} HP):</b> ${r.open.map(o => `${esc(o.p)} (${o.hp})`).join(', ') || 'geen'}</p>
+    ${r.mPocs.length ? `<p class="small"><b>M-POC's, geen POC-las (${r.mPocs.length}, ${nf.format(r.hpM)} HP):</b> ${r.mPocs.map(o => `${esc(o.p)} (${o.hp})`).join(', ')}</p>` : ''}
+    ${r.zonderDatum.length ? `<p class="small"><b>POC-las in de Actuals zonder datum (telt als open):</b> ${r.zonderDatum.map(esc).join(', ')}</p>` : ''}
+    ${S.zones[r.id] ? `<p class="small"><a href="#zone/${esc(r.id)}">Naar de POP-zone</a></p>` : ''}</div>`;
+}
+function uitrolKop(titel) {
+  if (!S.loaded) { app.innerHTML = '<p class="muted">Gegevens laden…</p>'; return false; }
   const ontbreekt = [!S.targets && 'de HP-targets per maand', !S.hp && 'de HP per POC', !Object.keys(S.zones).length && 'de Actuals'].filter(Boolean);
   if (ontbreekt.length) {
-    app.innerHTML = `<div class="fade"><h1>Uitrol nov · dec 2026</h1><div class="msg">Nog niet in de database: ${ontbreekt.join(', ')}. ${S.rol === 'beheer' ? '<a href="#import">Laad ze in via Import.</a>' : 'Een beheerder moet die eerst inladen.'}</div></div>`;
-    return;
+    app.innerHTML = `<div class="fade"><h1>${titel}</h1><div class="msg">Nog niet in de database: ${ontbreekt.join(', ')}. ${S.rol === 'beheer' ? '<a href="#import">Laad ze in via Import.</a>' : 'Een beheerder moet die eerst inladen.'}</div></div>`;
+    return false;
   }
-  const rijen = (S.targets.pops || []).filter(t => (t.m?.[UM[0]] || 0) + (t.m?.[UM[1]] || 0) > 0).map(uitrolRij);
-  const hubs = [...new Set(rijen.map(r => r.t.hub))].sort();
-  const dt = x => x?.op?.toDate ? x.op.toDate().toLocaleString('nl-BE', { dateStyle: 'short', timeStyle: 'short' }) : '';
-  app.innerHTML = `<div class="fade">
-   <h1>Uitrol nov · dec 2026</h1>
-   <p class="muted small">Uit de database · HP-targets: ${esc(dt(S.targets))} · HP per POC: ${esc(dt(S.hp))} · Actuals: ${esc(S.meta?.bestand || '')} ${esc(dt(S.meta))}</p>
-   <div class="kpis" id="uk"></div>
-   <div class="card">
-    <div class="row"><select id="uh" aria-label="HUB/MRO-zone"><option value="">Alle HUB/MRO-zones</option>${hubs.map(h => `<option ${h === S.hub ? 'selected' : ''}>${esc(h)}</option>`).join('')}</select></div>
-    <div class="legend"><span><b style="background:var(--feed)"></b>HP gelast</span><span><b style="background:var(--line)"></b>HP nog te lassen</span><span><b style="background:var(--prim)"></b>M-POC's (geen POC-las)</span></div>
-    <div class="scroll"><table class="stack" id="ut"><thead><tr><th>POP-zone</th><th class="n">Target nov</th><th class="n">Target dec</th><th class="n">HP gelast nov</th><th class="n">HP gelast dec</th><th>Voortgang HP-lijst</th><th class="n">HP nog te lassen</th><th class="n">POC's open</th><th>Opmerking</th></tr></thead><tbody></tbody></table></div>
-    <p class="small muted">Target = HP-planning (blad "Detail per POP"). Gelast = POC-las met datum in de Actuals, maal het aantal HP uit de HP-lijst. POC's met een M krijgen geen POC-las: die tellen niet mee als "nog te lassen" maar staan apart. Klik op een rij voor de open POC's.</p>
-   </div></div>`;
-  const draw = () => {
-    const sel = rijen.filter(r => !S.hub || r.t.hub === S.hub);
-    const som = k => sel.reduce((a, r) => a + r[k], 0);
-    const kpi = (v, l) => `<div class="kpi"><div class="v">${nf.format(v)}</div><div class="l">${l}</div></div>`;
-    $('#uk').innerHTML = kpi(sel.length, 'POP-zones met target in nov of dec') + kpi(som('tNov'), 'HP-target november') + kpi(som('tDec'), 'HP-target december')
-      + kpi(som('hpNov') + som('hpDec'), 'HP gelast in nov + dec') + kpi(som('hpOpen'), 'HP nog te lassen');
-    const w = (x, n) => n ? (x / n * 100).toFixed(1) + '%' : '0%';
-    $('#ut tbody').innerHTML = sel.map((r, i) => {
-      const geenLijst = !r.lijst;
-      return `<tr class="click" data-i="${rijen.indexOf(r)}">
-       <td data-l="POP-zone"><b>${esc(r.t.label)}</b>${r.z ? '' : '<br><span class="small late">geen Actuals</span>'}</td>
-       <td class="n" data-l="Target nov">${r.tNov ? nf.format(r.tNov) : ''}</td>
-       <td class="n" data-l="Target dec">${r.tDec ? nf.format(r.tDec) : ''}</td>
-       <td class="n" data-l="HP gelast nov">${r.hpNov ? nf.format(r.hpNov) : ''}</td>
-       <td class="n" data-l="HP gelast dec">${r.hpDec ? nf.format(r.hpDec) : ''}</td>
-       <td data-l="Voortgang">${geenLijst ? '<span class="small late">geen HP-lijst</span>' : `<div class="row" style="gap:8px"><div class="bar" style="flex:1"><span style="width:${w(r.hpGelast, r.hpLijst)};background:var(--feed)"></span><span style="width:${w(r.hpM, r.hpLijst)};background:var(--prim)"></span></div><span class="n small">${nf.format(r.hpGelast)} / ${nf.format(r.hpLijst)}</span></div>`}</td>
-       <td class="n" data-l="HP nog te lassen">${geenLijst ? '' : nf.format(r.hpOpen)}</td>
-       <td class="n" data-l="POC's open">${geenLijst ? '' : r.open.length}</td>
-       <td class="small" data-l="Opmerking">${esc(r.t.opm || '')}</td></tr>
-       <tr class="hidden" id="ud${rijen.indexOf(r)}"><td colspan="9" class="small">
-        ${r.open.length ? `<b>Nog te lassen (${r.open.length}):</b> ${r.open.map(o => `${esc(o.p)} (${o.hp})`).join(', ')}` : 'Geen open POC\'s in de HP-lijst.'}
-        ${r.mPocs.length ? `<br><b>M-POC's, geen POC-las (${r.mPocs.length}, ${nf.format(r.hpM)} HP):</b> ${r.mPocs.map(o => `${esc(o.p)} (${o.hp})`).join(', ')}` : ''}
-        ${r.zonderDatum.length ? `<br><b>POC-las in Actuals zonder datum:</b> ${r.zonderDatum.map(esc).join(', ')}` : ''}
-        ${r.z ? `<br><a href="#zone/${esc(r.t.id)}">Naar de POP-zone</a>` : ''}</td></tr>`;
-    }).join('') || '<tr><td colspan="9" class="muted">Geen POP-zones met een target in november of december.</td></tr>';
-    app.querySelectorAll('#ut tr[data-i]').forEach(tr => tr.onclick = () => $('#ud' + tr.dataset.i).classList.toggle('hidden'));
-  };
-  $('#uh').onchange = e => { S.hub = e.target.value; draw(); };
-  draw();
+  return true;
+}
+const uitrolBron = () => { const dt = x => x?.op?.toDate ? x.op.toDate().toLocaleString('nl-BE', { dateStyle: 'short', timeStyle: 'short' }) : '';
+  return `Uit de database · HP-targets: ${esc(dt(S.targets))} · HP per POC: ${esc(dt(S.hp))} · Actuals: ${esc(S.meta?.bestand || '')} ${esc(dt(S.meta))}`; };
+const kpi = (v, l) => `<div class="kpi"><div class="v">${v === null ? '–' : nf.format(v)}</div><div class="l">${l}</div></div>`;
+const somK = (rs, k) => rs.reduce((a, r) => a + (+r[k] || 0), 0);
+const UITLEG = `<p class="small muted">Target = HP-planning (blad "Detail per POP"). Gelast = POC-las met datum in de Actuals, maal het aantal HP uit de HP-lijst. POC's met een M krijgen geen POC-las: die tellen niet als "nog te lassen" en niet mee in % klaar, maar staan apart. Klik op ⏷ in een kolomkop om te filteren of te sorteren; klik op een rij voor de open POC's.</p>`;
+
+function uitrolView() {
+  if (!uitrolKop('Uitrol nov · dec 2026')) return;
+  const ids = (S.targets.pops || []).filter(t => (t.m?.[UM[0]] || 0) + (t.m?.[UM[1]] || 0) > 0).map(t => t.id);
+  const rijen = ids.map(uitrolRij);
+  app.innerHTML = `<div class="fade"><h1>Uitrol nov · dec 2026</h1><p class="muted small">${uitrolBron()}</p>
+    <div class="kpis" id="uk"></div><div class="card"><div id="ul"></div>${UITLEG}</div><div id="ud" style="margin-top:12px"></div></div>`;
+  xlLijst($('#ul'), 'novdec', [
+    { k: 'hub', l: 'HUB', t: 't' }, { k: 'zone', l: 'POP-zone', t: 't', w: 170 },
+    { k: 'tNov', l: 'Target nov', t: 'n', som: 1 }, { k: 'tDec', l: 'Target dec', t: 'n', som: 1 },
+    { k: 'hpNov', l: 'HP gelast nov', t: 'n', som: 1 }, { k: 'hpDec', l: 'HP gelast dec', t: 'n', som: 1 },
+    { k: 'hpGelast', l: 'HP gelast totaal', t: 'n', som: 1 }, { k: 'hpLijst', l: 'HP-lijst', t: 'n', som: 1 },
+    { k: 'pct', l: '% klaar', t: 'p' }, { k: 'hpOpen', l: 'HP nog te lassen', t: 'n', som: 1 },
+    { k: 'pocOpen', l: "POC's open", t: 'n', som: 1 }, { k: 'hpM', l: "HP M-POC's", t: 'n', som: 1 },
+    { k: 'actuals', l: 'Actuals', t: 't' }, { k: 'opm', l: 'Opmerking', t: 't', w: 200 }
+  ], rijen, {
+    onRij: r => { $('#ud').innerHTML = uitrolDetail(r); },
+    onFilter: rs => { $('#uk').innerHTML = kpi(rs.length, 'POP-zones') + kpi(somK(rs, 'tNov'), 'HP-target november') + kpi(somK(rs, 'tDec'), 'HP-target december') + kpi(somK(rs, 'hpNov') + somK(rs, 'hpDec'), 'HP gelast in nov + dec') + kpi(somK(rs, 'hpOpen'), 'HP nog te lassen'); }
+  });
+}
+
+function uitrolTotaalView() {
+  if (!uitrolKop('Uitrol totaal')) return;
+  const ids = [...new Set([...(S.targets.pops || []).map(t => t.id), ...Object.keys(S.hp.zones || {}), ...Object.keys(S.zones)])];
+  const rijen = ids.map(uitrolRij).sort((a, b) => a.hub.localeCompare(b.hub) || a.zone.localeCompare(b.zone, 'nl', { numeric: true }));
+  app.innerHTML = `<div class="fade"><h1>Uitrol totaal</h1><p class="muted small">${uitrolBron()} · alle POP-zones uit de HP-planning, de HP-lijst en de Actuals</p>
+    <h2 style="margin-top:18px">Nog te doen</h2><div class="kpis" id="uk"></div><div class="card"><div id="ul"></div>${UITLEG}</div><div id="ud" style="margin-top:12px"></div></div>`;
+  xlLijst($('#ul'), 'totaal', [
+    { k: 'hub', l: 'HUB', t: 't' }, { k: 'zone', l: 'POP-zone', t: 't', w: 170 },
+    { k: 'tHp', l: 'HP planning', t: 'n', som: 1 }, { k: 'hpLijst', l: 'HP-lijst', t: 'n', som: 1 },
+    { k: 'hpGelast', l: 'HP gelast', t: 'n', som: 1 }, { k: 'pct', l: '% klaar', t: 'p' },
+    { k: 'hpOpen', l: 'HP nog te lassen', t: 'n', som: 1 },
+    { k: 'pocs', l: "POC's in lijst", t: 'n', som: 1 }, { k: 'pocGelast', l: "POC's gelast", t: 'n', som: 1 },
+    { k: 'pocOpen', l: "POC's nog te lassen", t: 'n', som: 1 }, { k: 'pocM', l: "M-POC's", t: 'n', som: 1 }, { k: 'hpM', l: "HP M-POC's", t: 'n', som: 1 },
+    { k: 't2025', l: 'Target 2025', t: 'n', som: 1 }, { k: 't2026', l: 'Target 2026', t: 'n', som: 1 }, { k: 'tLater', l: 'Target 2027+', t: 'n', som: 1 },
+    { k: 'planning', l: 'Gepland vanaf nov 2026', t: 't', w: 150 }, { k: 'laatste', l: 'Laatste POC-las', t: 'd' },
+    { k: 'actuals', l: 'Actuals', t: 't' }, { k: 'opm', l: 'Opmerking', t: 't', w: 200 }
+  ], rijen, {
+    onRij: r => { $('#ud').innerHTML = uitrolDetail(r); },
+    onFilter: rs => { const zonder = rs.filter(r => !r.heeftLijst).length;
+      $('#uk').innerHTML = kpi(rs.length, 'POP-zones') + kpi(somK(rs, 'hpOpen'), 'HP nog te lassen') + kpi(somK(rs, 'pocOpen'), "POC's nog te lassen")
+        + kpi(somK(rs, 'hpGelast'), 'HP al gelast') + kpi(somK(rs, 'hpM'), "HP op M-POC's (geen POC-las)")
+        + (zonder ? kpi(zonder, 'POP-zones zonder HP-lijst (niet meegeteld)') : ''); }
+  });
 }
 
 /* ---------- Tekening ---------- */
